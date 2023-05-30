@@ -67,7 +67,7 @@ def run_calculations(pkl_names, script, mem, cpus, nodes):
         if len(submitted_jobs) >= nodes:
 
             while True:
-                output = os.popen("squeue -u obel -p kemi6").readlines()[1:]
+                output = os.popen("squeue -u brq616 -p kemi6").readlines()[1:]
                 all_running_jobs = set([int(job.split()[0]) for job in output])
 
                 if len(all_running_jobs & submitted_jobs) >= nodes: # intersect
@@ -88,7 +88,7 @@ if __name__ == "__main__":
 
     nodes = 200
 
-    script = '/groups/kemi/obel/xtb/azo_setup/make_scan.py'
+    script = './make_scan.py'
 
     data_file = sys.argv[1] #a csv file with all the batch names
 

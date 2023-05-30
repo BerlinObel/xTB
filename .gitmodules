@@ -1,0 +1,3 @@
+[submodule "QMC"]
+	path = QMC
+	url = https://github.com/koerstz/QMC.git
