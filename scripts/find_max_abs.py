@@ -13,7 +13,7 @@ from rdkit.Chem import AllChem
 sys.path.append('/groups/kemi/elholm/opt/xTB_sTDA')
 import vis_osc_pkl
 from vis_osc_pkl import get_max_abs
-sys.path.append("/groups/kemi/elholm/opt/tQMC/QMC")
+sys.path.append("./tQMC/QMC")
 import qmconf
 from qmmol import QMMol
 from qmconf import QMConf

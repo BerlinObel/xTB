@@ -6,7 +6,7 @@ import textwrap
 import pandas as pd
 import numpy as np
 
-sys.path.append("/groups/kemi/obel/opt/tQMC/QMC")
+sys.path.append("./tQMC/QMC")
 from qmconf import QMConf
 
 
@@ -73,7 +73,7 @@ def run_calculations(csv_names, script, mem, cpus, nodes):
         if len(submitted_jobs) >= nodes:
 
             while True:
-                output = os.popen("squeue -u obel -p chem").readlines()[1:]
+                output = os.popen("squeue -u brq616 -p chem").readlines()[1:]
                 all_running_jobs = set([int(job.split()[0]) for job in output])
 
                 if len(all_running_jobs & submitted_jobs) >= nodes: # intersect
@@ -102,9 +102,9 @@ if __name__ == "__main__":
     if sys.argv[3] == "test":
         test = True
     if test:
-        script = '/groups/kemi/obel/xtb/azo_setup/electronic_azo_conf_search.py'
+        script = './xTB/scripts/electronic_azo_conf_search.py'
     else:
-        script = '/groups/kemi/obel/xtb/azo_setup/electronic_azo_conf_search.py'
+        script = './xTB/scripts/electronic_azo_conf_search.py'
 
     data_file = sys.argv[1]
 

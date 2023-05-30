@@ -6,7 +6,7 @@ import textwrap
 import pandas as pd
 import numpy as np
 
-sys.path.append("/groups/kemi/obel/opt/tQMC/QMC")
+sys.path.append("./tQMC/QMC")
 from qmconf import QMConf
 
 
@@ -88,7 +88,7 @@ if __name__ == "__main__":
 
     nodes = 200
 
-    script = './make_scan.py'
+    script = './xTB/scripts/make_scan.py'
 
     data_file = sys.argv[1] #a csv file with all the batch names
 

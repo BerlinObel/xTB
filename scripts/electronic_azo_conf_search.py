@@ -8,7 +8,7 @@ from multiprocessing import Pool
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
-sys.path.append("/groups/kemi/obel/opt/tQMC/QMC")
+sys.path.append("./xTB/tQMC/QMC")
 #sys.path.append("/groups/kemi/koerstz/opt/QMC/QMC") #this works
 from qmmol import QMMol
 from qmconf import QMConf
