@@ -8,7 +8,7 @@ import os
 import xtb
 from rdkit import Chem
 from rdkit.Chem import AllChem
-sys.path.append("./tQMC/QMC")
+sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/QMC/QMC")
 from qmmol import QMMol
 from qmconf import QMConf
 import myio.io_ts_scan_xtb as ts_scan_xtb

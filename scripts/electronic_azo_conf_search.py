@@ -8,8 +8,8 @@ from multiprocessing import Pool
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
-sys.path.append("./xTB/tQMC/QMC")
-#sys.path.append("/groups/kemi/koerstz/opt/QMC/QMC") #this works
+sys.path.append("/groups/kemi/brq616/speciale/xTB/QMC/QMC")
+
 from qmmol import QMMol
 from qmconf import QMConf
 from calculator.xtb import xTB
@@ -73,18 +73,6 @@ def reorder_product(reac, prod):
 def reactant2product(reac_smi):
     """ create prodruct from reactant """
     
-    # smarts = "[C:1]1[C:2]2[C:3]=[C:4][C:5]1[C:6]=[C:7]2>>[C:1]1[C:2]2[C:3]3[C:4]4[C:5]1[C:6]4[C:7]23"
-    # __rxn__ = AllChem.ReactionFromSmarts(smarts)
-
-    # # create reactant mol
-    # reac_mol =  Chem.MolFromSmiles(reac_smi)
-    
-    # prod_mol = __rxn__.RunReactants((reac_mol,))[0][0]
-    # prod_smi = Chem.MolToSmiles(prod_mol)
-    
-    # reac_smi = Chem.MolToSmiles(Chem.MolFromSmiles(reac_smi))
-
-    # return reac_smi, prod_smi
     print(reac_smi)
     input_string = reac_smi
     prod_smi = input_string.replace("/N=N/", "/N=N\\")
@@ -221,34 +209,6 @@ if __name__ == '__main__':
     
     import pandas as pd
     import sys
-    
-    ### Kør 1
-    ##test_smi = 'ClC1=CC=CC=C1C#CC2=CC3C=CC2C3' # one extra
-    ##test_smi = 'ClC1=CC=CC=C1C#CC2=CC3C=C(C#CC4=CC=CC=C4)C2C3' # 2 extra
-    #test_smi = 'CN(C)c1ccc(C2=C(C#N)[C@@H]3C=C[C@H]2C3)cc1'
-
-    ##reac_smi, prod_smi = reactant2product(Chem.MolToSmiles(Chem.MolFromSmiles(test_smi),kekuleSmiles=True))
-    #reac_smi, prod_smi = reactant2product(test_smi)
-    #print(reac_smi, prod_smi)
-    
-    ##NBD = Chem.AddHs(Chem.MolFromSmiles(reac_smi))
-    ##NBD.SetProp("_Name","NBD")
-    ##AllChem.EmbedMolecule(NBD)
-    ##print(Chem.MolToMolBlock(NBD),file=open('NBD.mol','w+'))
-    
-    ##QC = Chem.AddHs(Chem.MolFromSmiles(prod_smi))
-    ##QC.SetProp("_Name","QC")
-    ##AllChem.EmbedMolecule(QC)
-    ##print(Chem.MolToMolBlock(QC),file=open('QC.mol','w+'))
-
-    #try:
-    #    reac, prod, storage = gs_mogens('test', reac_smi, 0, 1, 4)
-    #    print(storage*2625.5) #kJ/mol
-    #except:
-    #    print("something went wrong!")
-    #    pass
-
-    
     
     ### Kør mange
     cpus = 2

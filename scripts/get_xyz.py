@@ -6,7 +6,7 @@ import numpy as np
 import sys
 from rdkit import Chem
 from rdkit.Chem import Descriptors
-sys.path.append("/groups/kemi/obel/opt/tQMC/QMC")
+sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/QMC/QMC")
 import qmconf
 import os
 import time

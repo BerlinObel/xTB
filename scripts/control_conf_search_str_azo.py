@@ -6,7 +6,7 @@ import textwrap
 import pandas as pd
 import numpy as np
 
-sys.path.append("./tQMC/QMC")
+sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/QMC/QMC")
 from qmconf import QMConf
 
 
@@ -102,9 +102,9 @@ if __name__ == "__main__":
     if sys.argv[3] == "test":
         test = True
     if test:
-        script = './xTB/scripts/electronic_azo_conf_search.py'
+        script = '/groups/kemi/brq616/speciale/opt/xTB/scripts/electronic_azo_conf_search.py'
     else:
-        script = './xTB/scripts/electronic_azo_conf_search.py'
+        script = '/groups/kemi/brq616/speciale/opt/xTB/scripts/electronic_azo_conf_search.py'
 
     data_file = sys.argv[1]
 
