@@ -8,7 +8,7 @@ from multiprocessing import Pool
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
-sys.path.append("/groups/kemi/brq616/speciale/xTB/QMC/QMC")
+sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/QMC/QMC")
 
 from qmmol import QMMol
 from qmconf import QMConf
@@ -238,6 +238,8 @@ if __name__ == '__main__':
     
     structures = compound_list
     data = pd.DataFrame(structures)
+    print("final data before pickle")
+    print(data)
     data.to_pickle(sys.argv[1].split('/')[0].split('.')[0] + '.pkl')
     #data.to_pickle(sys.argv[1].split('/')[1].split('.')[0] + '.pkl') #works with submit_python
     #data.to_pickle(sys.argv[1].split('.')[0] + '.pkl') #IF running on frontend this should be used!

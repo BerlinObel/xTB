@@ -6,7 +6,7 @@ import textwrap
 import pandas as pd
 import numpy as np
 
-sys.path.append("/groups/kemi/brq616/speciale/xTB/QMC/QMC")
+sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/QMC/QMC")
 from qmconf import QMConf
 
 

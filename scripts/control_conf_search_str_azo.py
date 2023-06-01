@@ -9,7 +9,6 @@ import numpy as np
 sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/QMC/QMC")
 from qmconf import QMConf
 
-
 def qsub_prep(batchname, script_path, cpus, mem):
     """ """
     pwd = os.getcwd()
