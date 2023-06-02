@@ -6,7 +6,7 @@ import textwrap
 import pandas as pd
 import numpy as np
 
-sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/QMC/QMC")
+sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/tQMC/QMC")
 from qmconf import QMConf
 
 def qsub_prep(batchname, script_path, cpus, mem):

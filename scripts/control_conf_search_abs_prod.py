@@ -6,7 +6,7 @@ import textwrap
 import pandas as pd
 import numpy as np
 
-sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/QMC/QMC")
+sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/tQMC/QMC")
 from qmconf import QMConf
 
 
@@ -34,8 +34,9 @@ def qsub_prep(batchname, script_path, cpus, mem):
     cp {3}/{0}.pkl .
 
     # run python code
-    /groups/kemi/ree/anaconda3/envs/my-rdkit-env/bin/python {4} {0}.pkl {1}
-    #/groups/kemi/koerstz/anaconda3/envs/quantum_ml/bin/python {4} {0}.pkl {1}
+    # /groups/kemi/ree/anaconda3/envs/my-rdkit-env/bin/python {4} {0}.pkl {1}
+    # /groups/kemi/koerstz/anaconda3/envs/quantum_ml/bin/python {4} {0}.pkl {1}
+    python {4} {0}.pkl {1}
     # copy data back
     cp *_abs_prod.pkl {3}
 

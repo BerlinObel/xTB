@@ -1,4 +1,3 @@
-#!/groups/kemi/koerstz/anaconda3/envs/quantum_ml/bin/python
 
 import pickle
 import pandas as pd
@@ -8,7 +7,7 @@ import os
 import xtb
 from rdkit import Chem
 from rdkit.Chem import AllChem
-sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/QMC/QMC")
+sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/tQMC/QMC")
 from qmmol import QMMol
 from qmconf import QMConf
 import myio.io_ts_scan_xtb as ts_scan_xtb
@@ -23,7 +22,7 @@ def create_xcontrol(mol,xcontrol_name,scan):
     mol = Chem.AddHs(mol)
     
     sub = np.array(mol.GetSubstructMatches(smart_mol))
-    mol.Get
+    
     print(sub)
     
     #Write the xcontrol file

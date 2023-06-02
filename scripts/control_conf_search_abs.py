@@ -34,8 +34,9 @@ def qsub_prep(batchname, script_path, cpus, mem):
     cp {3}/{0}.pkl .
 
     # run python code
-    /groups/kemi/ree/anaconda3/envs/my-rdkit-env/bin/python {4} {0}.pkl {1}
+    # /groups/kemi/ree/anaconda3/envs/my-rdkit-env/bin/python {4} {0}.pkl {1}
     #/groups/kemi/koerstz/anaconda3/envs/quantum_ml/bin/python {4} {0}.pkl {1}
+    python {4} {0}.pkl {1}
     # copy data back
     cp *_abs.pkl {3}
 
