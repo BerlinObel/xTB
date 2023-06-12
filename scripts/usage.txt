@@ -1,12 +1,9 @@
-Copy of original file
+Based on work by ...
 
 Use of automated xTB scripts on steno
 
 1. Prerequisites:
-
-    a. Python 3.7 or larger with packages: pandas, rdkit, pickle, multiprocessing
-
-    b. QMC Python package. Found at steno:/groups/kemi/elholm/opt/tQMC/QMC
+    Needs to be updated
 
 2. Input file .csv:
 
@@ -22,45 +19,37 @@ Use of automated xTB scripts on steno
 
     a. Be in same folder as input file.
 
-    b. Run: python control_conf_search_str.py $input_file.csv batchsize
+    b. Run: python submit_calculations.py $input_file.csv storage
 
-    c. Wait…
+    c. Promt will ask for batch size.
+
+    d. Wait…
 
 4. Get TBR barriers:
 
     a. Be in same folder as before.
 
-    b. Make batch_list.csv by running: python make_batchlist_tbr.py
+    b. Make batch_list.csv by running: python prep_data.py tbr
 
-    c. Run: python control_conf_search_tbr.py batch_list.csv
-
-    d. Wait…
-
-5. Get reactant absorptions:
-
-    a. Be in same folder as before.
-
-    b. Make batch_batchlist_abs.csv with: python make_batchlist_abs.py
-
-    c. Run: python control_conf_search_abs.py batch_list_abs.csv
+    c. Run: python submit_calculations.py batch_list.csv tbr
 
     d. Wait…
 
-6. Get product absorptions:
+5. Get max absorption wavelength and osc strength:
 
     a. Be in same folder as before.
 
-    b. Run: python control_conf_search_abs_prod.py batch_list_abs.csv
+    b. Make batch_batchlist_abs.csv with: python prep_data.py abs
 
-    c. Wait…
+    c. Run: python submit_calculations.py batch_list_abs.csv abs
+
+    d. Wait…
 
 7. Merge all the data into one csv:
 
     a. Be in same folder.
 
-    b. Make batch_list_final.csv: python make_batchlist_final.py
-
-    c. Run: python merge_output_all.py
+    c. Run: python prep_data.py final
 
     d. Data will be available in: final_results.csv
 

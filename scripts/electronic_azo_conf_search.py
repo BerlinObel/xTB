@@ -2,7 +2,6 @@
 import sys
 import pandas as pd
 import copy
-
 from multiprocessing import Pool
 
 from rdkit import Chem
@@ -194,23 +193,11 @@ def gs_retry(chrg, mult, cps, name, prod_smi,p_r):
     return gs_conformer_search(n, rdkit_conf, chrg, mult, cps)
 
 
-
-def ts_search(gs_dict):
-    """ Perform ts scan of the bond getting broken"""
-    pass
-
-
-def ts_test(test_qmconf):
-    """ Automatically test TS if it correct """
-    pass 
-
-
 if __name__ == '__main__':
     
     import pandas as pd
     import sys
-    
-    ### Kør mange
+
     cpus = 2
 
     data = pd.read_csv(sys.argv[1])
@@ -232,14 +219,10 @@ if __name__ == '__main__':
                                   'storage': storage})
         except:
             pass
-    ## find ts
-    #with Pool(cpus) as pool:
-    #    structures = pool.map(ts_search, compound_list)
+
+    results_df = pd.DataFrame(compound_list)
+    pickle_name = sys.argv[1].split('/')[0].split('.')[0] + '.pkl'
+    print(f"pickle name: {pickle_name}")
+    print(results_df)
+    results_df.to_pickle(pickle_name)
     
-    structures = compound_list
-    data = pd.DataFrame(structures)
-    print("final data before pickle")
-    print(data)
-    data.to_pickle(sys.argv[1].split('/')[0].split('.')[0] + '.pkl')
-    #data.to_pickle(sys.argv[1].split('/')[1].split('.')[0] + '.pkl') #works with submit_python
-    #data.to_pickle(sys.argv[1].split('.')[0] + '.pkl') #IF running on frontend this should be used!
