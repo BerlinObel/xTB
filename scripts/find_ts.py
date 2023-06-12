@@ -14,16 +14,20 @@ from qmmol import QMMol
 from qmconf import QMConf
 
 def find_transistion_state(molecule):
+    """Find transistion state by using reaction path method from Grimme lab"""
     path_file = 'path.inp'
 
+    # Creating the xyz files needed fot the xtb calculations
     reactant_xyz_file = f"{molecule.reac.label}.xyz"
     molecule.reac.write_xyz(to_file=True)
     product_xyz_file = f"{molecule.prod.label}.xyz"
     molecule.prod.write_xyz(to_file=True)
     
     print(f"Finding transistion state for {molecule.reac.label}")
+    # The command takes a start xyz file (the reactant) and an end xyz file (the product)
     command_input = f"xtb {reactant_xyz_file} --path {product_xyz_file} --input {path_file}"
 
+    # Start the reaction path calculation
     output = execute_shell_command(command_input, shell=False)
     print(output.decode('utf-8'))
    
@@ -45,7 +49,8 @@ def find_transistion_state(molecule):
 def main(input_filename):
     # Load the data
     data = pd.read_pickle(input_filename)
-    
+
+    # The path.inp file controls the setting for the reaction path search
     path_file = "path.inp"
     reaction_path_settings = '''$path
     nrun=1
@@ -54,12 +59,14 @@ def main(input_filename):
     kpush=0.003
     kpull=-0.015
     ppull=0.05
-    alp=1.2
+    alp=0.9
     $end'''
 
+    # Create the path.inp file
     with open(path_file, 'w') as file:
         file.write(reaction_path_settings)    
-        
+
+    # Find transistions states for each compound     
     compound_list = []
     for compound in data.itertuples():
 
@@ -72,13 +79,7 @@ def main(input_filename):
             tbr = 0
         
         tbr = tbr * 4.184
-        print(f"{ts_name} back-reaction barrier: {tbr}")
-
-        # Cleanup
-        # os.remove(f"{ts_name}.out")
-        # os.remove(f"{ts_name}_xtbscan.log")
-        # os.remove(f"{ts_name}.xyz")
-        
+        print(f"{ts_name} back-reaction barrier: {tbr}")  
         
         compound_list.append({
             'rep': compound.rep,
@@ -88,7 +89,6 @@ def main(input_filename):
             'storage': compound.storage * 2625.5,
             'tbr': tbr
         })
-    # os.remove(path.inp)
 
     # Save the results
     results_df = pd.DataFrame(compound_list)

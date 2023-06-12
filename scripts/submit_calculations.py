@@ -1,73 +1,63 @@
-import time
 import os
 import sys
-import textwrap
-
+import time
 import pandas as pd
 import numpy as np
+import textwrap
 
-storage_energy_script = '/groups/kemi/brq616/speciale/opt/xTB/scripts/electronic_azo_conf_search.py'
-transistion_state_script = '/groups/kemi/brq616/speciale/opt/xTB/scripts/find_ts.py'
-absorption_script = '/groups/kemi/brq616/speciale/opt/xTB/scripts/find_max_abs.py'
+STORAGE_ENERGY_SCRIPT = '/groups/kemi/brq616/speciale/opt/xTB/scripts/electronic_azo_conf_search.py'
+TRANSITION_STATE_SCRIPT = '/groups/kemi/brq616/speciale/opt/xTB/scripts/find_ts.py'
+ABSORPTION_SCRIPT = '/groups/kemi/brq616/speciale/opt/xTB/scripts/find_max_abs.py'
 
-def prepare_slurm_script(job_name, python_script, cpus, memory, working_dir, file_suffix, job_type):
+JOB_TYPE_CONFIG = {
+    'storage': {
+        'python_script': STORAGE_ENERGY_SCRIPT,
+        'file_suffix': '',
+        'chunk_size': None,  # This will be filled in based on user input
+    },
+    'tbr': {
+        'python_script': TRANSITION_STATE_SCRIPT,
+        'file_suffix': '_new',
+    },
+    'abs': {
+        'python_script': ABSORPTION_SCRIPT,
+        'file_suffix': '_abs',
+    },
+}
+
+SLURM_TEMPLATE = '''\
+#!/bin/sh
+#SBATCH --job-name={job_name}
+#SBATCH --cpus-per-task={cpus}
+#SBATCH --mem={memory}
+#SBATCH --ntasks=1
+#SBATCH --error={working_dir}/{job_name}.stderr
+#SBATCH --output={working_dir}/{job_name}.stdout
+#SBATCH --time=1000:00:00
+#SBATCH --partition=chem
+#SBATCH --no-requeue
+
+cd /scratch/$SLURM_JOB_ID
+
+echo "Job id: $SLURM_JOB_ID"
+
+# copy batch file
+cp {working_dir}/{job_name}{job_suffix} .
+
+# run python code
+python {python_script} {job_name}{job_suffix} {memory}
+
+# copy data back
+cp *{job_name}{file_suffix}.pkl {working_dir}
+'''
+
+def prepare_slurm_script(job_name, python_script, cpus, memory, working_dir, file_suffix):
     """Creates a SLURM script to submit a calculation to the queue."""
-    
-    if job_type == "storage":
-        slurm_script = '''\
-        #!/bin/sh
-        #SBATCH --job-name={0}
-        #SBATCH --cpus-per-task={1}
-        #SBATCH --mem={2}
-        #SBATCH --ntasks=1
-        #SBATCH --error={3}/{0}.stderr
-        #SBATCH --output={3}/{0}.stdout
-        #SBATCH --time=1000:00:00
-        #SBATCH --partition=chem
-        #SBATCH --no-requeue
-
-        cd /scratch/$SLURM_JOB_ID
-
-        echo "Job id: $SLURM_JOB_ID"
-
-        # copy batch file
-        cp {3}/{0}.csv .
-
-        # run python code
-        python {4} {0}.csv {2}
-
-        # copy data back
-        cp {0}.pkl {3}
-
-    '''.format(job_name, cpus, memory, working_dir, python_script)
-    
-    else:
-        slurm_script = '''\
-        #!/bin/sh
-        #SBATCH --job-name={0}
-        #SBATCH --cpus-per-task={1}
-        #SBATCH --mem={2}
-        #SBATCH --ntasks=1
-        #SBATCH --error={3}/{0}.stderr
-        #SBATCH --output={3}/{0}.stdout
-        #SBATCH --time=1000:00:00
-        #SBATCH --partition=chem
-        #SBATCH --no-requeue
-
-        cd /scratch/$SLURM_JOB_ID
-
-        echo "Job id: $SLURM_JOB_ID"
-
-        # copy batch file
-        cp {3}/{0}.pkl .
-
-        # run python code
-        python {4} {0}.pkl {2}
-
-        # copy data back
-        cp *{0}{5}.pkl {3}
-
-        '''.format(job_name, cpus, memory, working_dir, python_script, file_suffix)
+    job_suffix = '.csv' if file_suffix == '' else '.pkl'
+    slurm_script = SLURM_TEMPLATE.format(
+        job_name=job_name, cpus=cpus, memory=memory, working_dir=working_dir,
+        job_suffix=job_suffix, python_script=python_script, file_suffix=file_suffix,
+    )
 
     slurm_script_filename = f"{job_name}_qsub.tmp"
 
@@ -81,11 +71,11 @@ def submit_slurm_job(slurm_script):
     batch_id = os.popen("sbatch " + slurm_script).read()
     return batch_id.strip().split()[-1]
 
-def run_calculations(batch_files, python_script, memory, cpus, max_running_jobs, file_suffix, job_type):
+def run_calculations(batch_files, python_script, memory, cpus, max_running_jobs, file_suffix):
     """Runs a batch of calculations on a SLURM cluster."""
     submitted_jobs = set()
     for batch_file in batch_files:
-        slurm_script = prepare_slurm_script(batch_file, python_script, cpus, memory, os.getcwd(), file_suffix, job_type)
+        slurm_script = prepare_slurm_script(batch_file, python_script, cpus, memory, os.getcwd(), file_suffix)
         batch_id = submit_slurm_job(slurm_script)
         submitted_jobs.add(batch_id)
 
@@ -106,33 +96,27 @@ if __name__ == "__main__":
     max_running_jobs = 200
 
     data_file = sys.argv[1]
-    
+    job_type = sys.argv[2]
 
-    if sys.argv[2] == "storage":
-        python_script = storage_energy_script
-        file_suffix = ""
-        chunk_size=int(input("Batch size: "))
+    if job_type not in JOB_TYPE_CONFIG:
+        print(f"Unknown job type: {job_type}")
+        sys.exit(1)
+
+    config = JOB_TYPE_CONFIG[job_type]
+
+    if job_type == "storage":
+        config['chunk_size'] = int(input("Batch size: "))
         data = pd.read_csv(data_file)
-        chunks = [data[i:i+chunk_size] for i in range(0, data.shape[0], chunk_size)]
+        chunks = [data[i:i+config['chunk_size']] for i in range(0, data.shape[0], config['chunk_size'])]
         batch_files = []
         for idx, chunk in enumerate(chunks):
             chunk_name = f"smiles_batch-{idx}"
             chunk.to_csv(chunk_name + ".csv", index=False)
             batch_files.append(chunk_name)
-
-    if sys.argv[2] == "tbr":
-        python_script = transistion_state_script
-        file_suffix = "_new"
+    else:
         batch_files = np.loadtxt(data_file, dtype=str).tolist()
 
-    if sys.argv[2] == "abs":
-        python_script = absorption_script
-        file_suffix = "_abs"
-        batch_files = np.loadtxt(data_file, dtype=str).tolist()
-        
-    
-    run_calculations(batch_files, python_script, memory, cpus, max_running_jobs, file_suffix, sys.argv[2])
+    run_calculations(batch_files, config['python_script'], memory, cpus, max_running_jobs, config['file_suffix'])
 
-        
 
     

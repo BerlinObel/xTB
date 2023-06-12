@@ -1,4 +1,3 @@
-#!/groups/kemi/koerstz/anaconda3/envs/quantum_ml/bin/python
 import sys
 import pandas as pd
 import copy
@@ -17,212 +16,179 @@ from calculator.gaussian import Gaussian
 
 from conformers.create_conformers import RotatableBonds
 
+def find_atom_mapping_reactant_to_product(reactant, product):
+    """Find and return new atom order in product based on reactant"""
+    # Copy molecules to prevent mutation of original molecules
+    reactant_copy = copy.deepcopy(reactant)
+    product_copy = copy.deepcopy(product)
 
-def map_atoms(reactant, product):
-    """Returns new order in product """
-
-    reac = copy.deepcopy(reactant)
-    prod = copy.deepcopy(product)
-
-    Chem.Kekulize(reac,clearAromaticFlags=True)
-    Chem.Kekulize(prod,clearAromaticFlags=True)
+    # Kekulize molecules to make aromaticity explicit
+    Chem.Kekulize(reactant_copy, clearAromaticFlags=True)
+    Chem.Kekulize(product_copy, clearAromaticFlags=True)
      
-    reac = change_mol(reac)
-    prod = change_mol(prod)
+    # Normalize molecules to only compare connectivity
+    reactant_norm = normalize_molecule(reactant_copy)
+    product_norm = normalize_molecule(product_copy)
     
-    # Break Bond in reactant, in order to compare to product.
+    # Attempt to match structure of product to reactant by breaking a bond
     smarts_bond = Chem.MolFromSmarts('[CX4;H0;R]-[CX4;H1;R]')
-    atom_idx = list(reac.GetSubstructMatch(smarts_bond))
+    atom_indices = list(reactant_norm.GetSubstructMatch(smarts_bond))
     
-    if len(atom_idx) != 0:
-        bond = reac.GetBondBetweenAtoms(atom_idx[0], atom_idx[1])
-        broken_bond_reac = Chem.FragmentOnBonds(reac, [bond.GetIdx()], addDummies=False)
+    if len(atom_indices) != 0:
+        bond = reactant_norm.GetBondBetweenAtoms(atom_indices[0], atom_indices[1])
+        broken_bond_reactant = Chem.FragmentOnBonds(reactant_norm, [bond.GetIdx()], addDummies=False)
         
         # find new atom order for product
-        prod_order = prod.GetSubstructMatch(broken_bond_reac)
-    
+        product_order = product_norm.GetSubstructMatch(broken_bond_reactant)
     else:
-        prod_order = prod.GetSubstructMatch(reac)
+        product_order = product_norm.GetSubstructMatch(reactant_norm)
     
-    return prod_order
+    return product_order
 
-
-def change_mol(mol):
-    """ Change molecule to only compare conectivity """
-
+def normalize_molecule(mol):
+    """Normalize molecule to compare only connectivity"""
+    # Change all bond types to single
     for bond in mol.GetBonds():
         if bond.GetBondType() != Chem.BondType.SINGLE:
             bond.SetBondType(Chem.BondType.SINGLE)
-
+    # Remove formal charges
     for atom in mol.GetAtoms():
-        if atom.GetFormalCharge() == 0:
+        if atom.GetFormalCharge() != 0:
             atom.SetFormalCharge(0)
-
     return mol
 
-
-def reorder_product(reac, prod):
-    """ change atom order of product, to match reactant  """
-    new_product_order = map_atoms(reac, prod)
-    reordered_product = Chem.RenumberAtoms(prod, new_product_order)
-
+def reorder_product_to_match_reactant(reactant, product):
+    """Change atom order of product to match reactant"""
+    new_product_order = find_atom_mapping_reactant_to_product(reactant, product)
+    reordered_product = Chem.RenumberAtoms(product, new_product_order)
     return reordered_product
 
+def generate_product_from_reactant(reactant_smi):
+    """Generate product from reactant SMILES string"""
+    product_smi = reactant_smi.replace("/N=N/", "/N=N\\")
+    return reactant_smi, product_smi
 
-def reactant2product(reac_smi):
-    """ create prodruct from reactant """
-    
-    print(reac_smi)
-    input_string = reac_smi
-    prod_smi = input_string.replace("/N=N/", "/N=N\\")
-    print(prod_smi)
-
-    return reac_smi, prod_smi
-
-
-
-
-def gs_conformer_search(name, rdkit_conf, chrg, mult, cpus):
-    """ ground state conformer search """
-    
-    charged = True # hard coded for mogens
-    
-    # create conformers
+def find_ground_state_conformers(name, rdkit_conf, charge, multiplicity, num_cpus):
+    """Find ground state conformers"""
+    # Create QMMol object and add conformer
     qmmol = QMMol()
-    qmmol.add_conformer(rdkit_conf, fmt='rdkit', label=name,
-                       charged_fragments=charged, set_initial=True)
+    qmmol.add_conformer(rdkit_conf, fmt='rdkit', label=name, charged_fragments=True, set_initial=True)
 
-    # find #-- rot bond.
-    mol = qmmol.get_rdkit_mol()
-    triple_smart = '[c]:[c]-[CH0]#[CH0]'
-    extra_rot_bond = int(len(mol.GetSubstructMatches(Chem.MolFromSmarts(triple_smart))) / 2)
+    # Find number of rotatable bonds, accounting for triple bonds
+    molecule = qmmol.get_rdkit_mol()
+    triple_bond_smarts = '[c]:[c]-[CH0]#[CH0]'
+    num_extra_rotatable_bonds = int(len(molecule.GetSubstructMatches(Chem.MolFromSmarts(triple_bond_smarts))) / 2)
 
-    # print compute number of conformers to find
-    rot_bonds = len(RotatableBonds(qmmol.initial_conformer.get_rdkit_mol())) + extra_rot_bond
-    num_confs = 5 + 5*rot_bonds
-    qmmol.create_random_conformers(threads=cpus, num_confs=num_confs)
+    # Compute number of conformers to find
+    num_rotatable_bonds = len(RotatableBonds(qmmol.initial_conformer.get_rdkit_mol())) + num_extra_rotatable_bonds
+    num_conformers = 5 + 5 * num_rotatable_bonds
+    qmmol.create_random_conformers(threads=num_cpus, num_confs=num_conformers)
 
-    xtb_params = {'method': 'gfn1',
-                  'opt': 'tight',
-                  'cpus': 1}
+    # Set up and run optimization
+    xtb_parameters = {'method': 'gfn1', 'opt': 'tight', 'cpus': 1}
+    qmmol.calc = xTB(parameters=xtb_parameters)
+    qmmol.optimize(num_procs=num_cpus, keep_files=False)
 
-    qmmol.calc = xTB(parameters=xtb_params)
-    qmmol.optimize(num_procs=cpus, keep_files=False)
+    # Get most stable conformer. If most stable conformer is not identical to initial conformer, try next lowest.
+    initial_smiles = Chem.MolToSmiles(Chem.RemoveHs(qmmol.initial_conformer.get_rdkit_mol()))
+    lowest_energy_conformer = qmmol.nlowest(1)[0]
+    conf_smiles = Chem.MolToSmiles(Chem.RemoveHs(lowest_energy_conformer.get_rdkit_mol()))
 
-    # Get most stable conformer. If most stable conformer
-    # not identical to initial conf try second lowest.
-    initial_smi = Chem.MolToSmiles(Chem.RemoveHs(qmmol.initial_conformer.get_rdkit_mol()))
-    low_energy_conf = qmmol.nlowest(1)[0]
-    conf_smi = Chem.MolToSmiles(Chem.RemoveHs(low_energy_conf.get_rdkit_mol()))
+    index = 1
+    while initial_smiles != conf_smiles:
+        lowest_energy_conformer = qmmol.nlowest(index+1)[-1]
+        conf_smiles = Chem.MolToSmiles(Chem.RemoveHs(lowest_energy_conformer.get_rdkit_mol()))
+        index += 1
+        if len(qmmol.conformers) < index:
+            sys.exit('Error: no conformers match the initial input')
+    return lowest_energy_conformer
 
-    i = 1
-    while initial_smi != conf_smi:
-        low_energy_conf = qmmol.nlowest(i+1)[-1]
-        conf_smi = Chem.MolToSmiles(Chem.RemoveHs(low_energy_conf.get_rdkit_mol()))
-        i += 1
-        
-        if len(qmmol.conformers) < i:
-            sys.exit('no conformers match the initial input')
+def perform_ground_state_search(name, smi, charge, multiplicity, num_cpus):
+    """Perform ground state search given a SMILES string"""
+    reactant_smi, product_smi = generate_product_from_reactant(smi)
 
-    return low_energy_conf
-
-
-def gs_mogens(name, smi, chrg, mult, cps):
-    """GS conformers search given a smiles string  """
-    print('gs_mogens reached')    
-    reac_smi, prod_smi = reactant2product(smi)
-    print(reac_smi,prod_smi)
-    reac_mol = Chem.AddHs(Chem.MolFromSmiles(reac_smi))
+    reactant_mol = Chem.AddHs(Chem.MolFromSmiles(reactant_smi))
+    # Attempt to reorder product to match reactant
     try:
-        print("Trying reorder")
-        prod_mol = reorder_product(reac_mol, Chem.AddHs(Chem.MolFromSmiles(prod_smi))) #THIS IS THE ACTUAL PLACE THAT FAILS!
+        print("Attempting to reorder product...")
+        product_mol = reorder_product_to_match_reactant(reactant_mol, Chem.AddHs(Chem.MolFromSmiles(product_smi)))
     except:
-        print("Reorder failed,using no reorder")
-        prod_mol = Chem.AddHs(Chem.MolFromSmiles(prod_smi))
-    for i, comp in enumerate([(reac_mol, "_r"), (prod_mol, "_p")]):
-        mol, p_r = comp
-        
-        AllChem.EmbedMolecule(mol)
-        rdkit_conf = mol.GetConformer()
+        print("Product reorder failed, using original order...")
+        product_mol = Chem.AddHs(Chem.MolFromSmiles(product_smi))
 
-        # create mol for QMMol using rdkit
-        n = name + p_r
-        
-        if p_r == '_r':
+    for molecule, suffix in [(reactant_mol, "_r"), (product_mol, "_p")]:
+        AllChem.EmbedMolecule(molecule)
+        rdkit_conf = molecule.GetConformer()
+        molecule_name = name + suffix
+        # Conduct ground state conformer search
+        if suffix == '_r':
             try:
-                print("Starting reac conformer search")
-                reac_qmconf = gs_conformer_search(n, rdkit_conf, chrg, mult, cps)
+                print("Starting reactant conformer search...")
+                reactant_qmconf = find_ground_state_conformers(molecule_name, rdkit_conf, charge, multiplicity, num_cpus)
             except:
-                print("Original qmconf for reac failed, thus algo turns to no reorder")
-                count = 0
-                reac_qmconf = None
-                while reac_qmconf is None and count < 40:
+                print("Reactant conformer search failed, retrying without reordering...")
+                retry_count = 0
+                reactant_qmconf = None
+                while reactant_qmconf is None and retry_count < 40:
                     try:
-                        reac_qmconf = gs_retry(chrg, mult, cps, name, reac_smi,p_r)
+                        reactant_qmconf = retry_ground_state_search(charge, multiplicity, num_cpus, name, reactant_smi, suffix)
                     except:
-                        count += 1
-                        print("Failed retry:",count)
-                        pass
-        if p_r == '_p':
+                        retry_count += 1
+                        print(f"Retry failed: {retry_count}")
+        elif suffix == '_p':
             try:
-                print("Starting prod conformer search")
-                prod_qmconf = gs_conformer_search(n, rdkit_conf, chrg, mult, cps)
+                print("Starting product conformer search...")
+                product_qmconf = find_ground_state_conformers(molecule_name, rdkit_conf, charge, multiplicity, num_cpus)
             except:
-                print("Original qmconf for prod failed, thus algo turns to no reorder")
-                count = 0
-                prod_qmconf = None
-                while prod_qmconf is None and count < 40:
+                print("Product conformer search failed, retrying without reordering...")
+                retry_count = 0
+                product_qmconf = None
+                while product_qmconf is None and retry_count < 40:
                     try:
-                        prod_qmconf = gs_retry(chrg, mult, cps, name, prod_smi,p_r)
+                        product_qmconf = retry_ground_state_search(charge, multiplicity, num_cpus, name, product_smi, suffix)
                     except:
-                        count += 1
-                        print("Failed retry:",count)
-                        pass
-    storage = prod_qmconf.results['energy'] - reac_qmconf.results['energy']
+                        retry_count += 1
+                        print(f"Retry failed: {retry_count}")
 
-    return reac_qmconf, prod_qmconf, storage
+    # Calculate and store energy difference between product and reactant
+    energy_diff = product_qmconf.results['energy'] - reactant_qmconf.results['energy']
+    return reactant_qmconf, product_qmconf, energy_diff
 
 
-
-def gs_retry(chrg, mult, cps, name, prod_smi,p_r):
-    
-    mol = Chem.AddHs(Chem.MolFromSmiles(prod_smi))
-    AllChem.EmbedMolecule(mol)
-    rdkit_conf = mol.GetConformer()
-    n = name + p_r
-    return gs_conformer_search(n, rdkit_conf, chrg, mult, cps)
+def retry_ground_state_search(charge, multiplicity, num_cpus, name, smi, suffix):
+    """Retry ground state search if initial attempt fails"""
+    molecule = Chem.AddHs(Chem.MolFromSmiles(smi))
+    AllChem.EmbedMolecule(molecule)
+    rdkit_conf = molecule.GetConformer()
+    molecule_name = name + suffix
+    return find_ground_state_conformers(molecule_name, rdkit_conf, charge, multiplicity, num_cpus)
 
 
 if __name__ == '__main__':
-    
-    import pandas as pd
-    import sys
+    num_cpus = 2
+    dataset = pd.read_csv(sys.argv[1])
+    # Find energy difference and product for each molecule in the dataset
+    results = []
+    for index, compound in dataset.iterrows():
+        # Get reactant conformer, product conformer, and energy difference
+        reactant_qmconf, product_qmconf, energy_diff = perform_ground_state_search(
+            str(compound.comp_name),
+            compound.smiles,
+            compound.charge,
+            compound.multiplicity,
+            num_cpus
+        )
+        results.append({
+            'rep': str(compound.comp_name),
+            'reac': reactant_qmconf,
+            'prod': product_qmconf,
+            'storage': energy_diff
+        })
 
-    cpus = 2
-
-    data = pd.read_csv(sys.argv[1])
-    print(data)
-    # find storage energy
-    compound_list = list()
-    for idx, compound in data.iterrows():
-        try: 
-            reac_qmconf, prod_qmconf, storage = gs_mogens(str(compound.comp_name),
-                                                          compound.smiles,
-                                                          compound.charge,
-                                                          compound.multiplicity,
-                                                          cpus)
-
-            print(str(compound.comp_name),compound.smiles,compound.charge,compound.multiplicity,cpus) 
-            compound_list.append({'rep': str(compound.comp_name),
-                                  'reac': reac_qmconf,
-                                  'prod': prod_qmconf,
-                                  'storage': storage})
-        except:
-            pass
-
-    results_df = pd.DataFrame(compound_list)
-    pickle_name = sys.argv[1].split('/')[0].split('.')[0] + '.pkl'
-    print(f"pickle name: {pickle_name}")
+    # Gather results
+    results_df = pd.DataFrame(results)
+    pickle_filename = sys.argv[1].split('/')[0].split('.')[0] + '.pkl'
+    print(f"pickle filename: {pickle_filename}")
     print(results_df)
-    results_df.to_pickle(pickle_name)
-    
+    results_df.to_pickle(pickle_filename)
+
