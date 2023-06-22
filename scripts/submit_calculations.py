@@ -4,12 +4,13 @@ import time
 import pandas as pd
 import numpy as np
 import textwrap
+from typing import List, Set, Dict, Optional
 
 STORAGE_ENERGY_SCRIPT = '/groups/kemi/brq616/speciale/opt/xTB/scripts/electronic_azo_conf_search.py'
 TRANSITION_STATE_SCRIPT = '/groups/kemi/brq616/speciale/opt/xTB/scripts/find_ts.py'
 ABSORPTION_SCRIPT = '/groups/kemi/brq616/speciale/opt/xTB/scripts/find_max_abs.py'
 
-JOB_TYPE_CONFIG = {
+JOB_TYPE_CONFIG: Dict[str, Dict[str, Optional[str]]] = {
     'storage': {
         'python_script': STORAGE_ENERGY_SCRIPT,
         'file_suffix': '',
@@ -69,9 +70,9 @@ def prepare_slurm_script(job_name, python_script, cpus, memory, working_dir, fil
 def submit_slurm_job(slurm_script):
     """Submits a job to SLURM and returns the job ID."""
     batch_id = os.popen("sbatch " + slurm_script).read()
-    return batch_id.strip().split()[-1]
+    return batch_id.strip().split()[-1] 
 
-def run_calculations(batch_files, python_script, memory, cpus, max_running_jobs, file_suffix):
+def run_calculations(batch_files: List[str], python_script: str, memory: int, cpus: int, max_running_jobs: int, file_suffix: str):
     """Runs a batch of calculations on a SLURM cluster."""
     submitted_jobs = set()
     for batch_file in batch_files:
@@ -79,16 +80,26 @@ def run_calculations(batch_files, python_script, memory, cpus, max_running_jobs,
         batch_id = submit_slurm_job(slurm_script)
         submitted_jobs.add(batch_id)
 
-        while len(submitted_jobs) >= max_running_jobs:
-            output = os.popen("squeue -u brq616 -p chem").readlines()[1:]
-            running_jobs = {job.split()[0] for job in output}
+        manage_job_submission(max_running_jobs, submitted_jobs)
 
-            # remove finished jobs
-            submitted_jobs -= running_jobs
+def manage_job_submission(max_running_jobs: int, submitted_jobs: Set[str]) -> None:
+    """
+    Manages job submissions based on pre-defined constraints.  
+    This function ensures that the number of submitted jobs does 
+    not exceed the pre-defined limit on nodes ('max_running_jobs'). 
+    New jobs are only submitted when there are sufficient system resources 
+    available as per this limit.
+    """
+    while len(submitted_jobs) >= max_running_jobs:
+        output = os.popen("squeue -u brq616 -p chem").readlines()[1:]
+        running_jobs = {job.split()[0] for job in output}
 
-            if len(submitted_jobs) < max_running_jobs:
-                break
-            time.sleep(10)
+        # remove finished jobs
+        submitted_jobs -= running_jobs
+
+        if len(submitted_jobs) < max_running_jobs:
+            break
+        time.sleep(10)
 
 if __name__ == "__main__":
     cpus = 2

@@ -32,7 +32,8 @@ def find_transistion_state(molecule):
     print(output.decode('utf-8'))
    
     ts_xyz_file = "xtbpath_ts.xyz"
-    ts_object = QMConf(ts_xyz_file, fmt='xyz')
+    ts_name  = f"{str(molecule.reac.label.split('_r')[0])}_ts" 
+    ts_object = QMConf(ts_xyz_file, fmt='xyz', label=ts_name)
     
     # The pattern for finding the back reaction barrier
     pattern = "backward barrier \(kcal\)  :\s*([\d\.]+)"

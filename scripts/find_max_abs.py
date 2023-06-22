@@ -10,7 +10,7 @@ from useful_functions import execute_shell_command
 from useful_functions import get_max_absorption
 
 
-def find_excited_states(molecule_file_path, charge, spin, n):
+def find_excited_states(molecule_file_path, charge, spin):
     """
     Calculates excited states for a given molecule using stda return the wavelenghts(nm) and oscillator strengths.
     """
