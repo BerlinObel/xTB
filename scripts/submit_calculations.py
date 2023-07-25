@@ -4,53 +4,11 @@ import time
 import pandas as pd
 import numpy as np
 import textwrap
-from typing import List, Set, Dict, Optional
+from typing import List, Set
 
-STORAGE_ENERGY_SCRIPT = '/groups/kemi/brq616/speciale/opt/xTB/scripts/electronic_azo_conf_search.py'
-TRANSITION_STATE_SCRIPT = '/groups/kemi/brq616/speciale/opt/xTB/scripts/find_ts.py'
-ABSORPTION_SCRIPT = '/groups/kemi/brq616/speciale/opt/xTB/scripts/find_max_abs.py'
-
-JOB_TYPE_CONFIG: Dict[str, Dict[str, Optional[str]]] = {
-    'storage': {
-        'python_script': STORAGE_ENERGY_SCRIPT,
-        'file_suffix': '',
-        'chunk_size': None,  # This will be filled in based on user input
-    },
-    'tbr': {
-        'python_script': TRANSITION_STATE_SCRIPT,
-        'file_suffix': '_new',
-    },
-    'abs': {
-        'python_script': ABSORPTION_SCRIPT,
-        'file_suffix': '_abs',
-    },
-}
-
-SLURM_TEMPLATE = '''\
-#!/bin/sh
-#SBATCH --job-name={job_name}
-#SBATCH --cpus-per-task={cpus}
-#SBATCH --mem={memory}
-#SBATCH --ntasks=1
-#SBATCH --error={working_dir}/{job_name}.stderr
-#SBATCH --output={working_dir}/{job_name}.stdout
-#SBATCH --time=1000:00:00
-#SBATCH --partition=chem
-#SBATCH --no-requeue
-
-cd /scratch/$SLURM_JOB_ID
-
-echo "Job id: $SLURM_JOB_ID"
-
-# copy batch file
-cp {working_dir}/{job_name}{job_suffix} .
-
-# run python code
-python {python_script} {job_name}{job_suffix} {memory}
-
-# copy data back
-cp *{job_name}{file_suffix}.pkl {working_dir}
-'''
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(script_dir)
+from settings import SLURM_TEMPLATE, JOB_TYPE_CONFIG, USER, QUEUE
 
 def prepare_slurm_script(job_name, python_script, cpus, memory, working_dir, file_suffix):
     """Creates a SLURM script to submit a calculation to the queue."""
@@ -91,7 +49,7 @@ def manage_job_submission(max_running_jobs: int, submitted_jobs: Set[str]) -> No
     available as per this limit.
     """
     while len(submitted_jobs) >= max_running_jobs:
-        output = os.popen("squeue -u brq616 -p chem").readlines()[1:]
+        output = os.popen(f"squeue -u {USER} -p {QUEUE}").readlines()[1:]
         running_jobs = {job.split()[0] for job in output}
 
         # remove finished jobs

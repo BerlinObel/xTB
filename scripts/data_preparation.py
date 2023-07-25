@@ -1,12 +1,16 @@
 import sys
+import os
 import pandas as pd
 from glob import glob
 from tqdm import tqdm
 
-sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/tQMC/QMC")
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(script_dir)
+from settings import QMC_PATH
+sys.path.append(QMC_PATH)
 
-from qmmol import QMMol
-from qmconf import QMConf
+from QMC.qmmol import QMMol
+from QMC.qmconf import QMConf
 
 def create_batches(pattern, file_suffix):
     file_paths = pattern

@@ -1,17 +1,20 @@
 import pandas as pd
 import numpy as np
 import sys
+import os
 import re
 from rdkit import Chem
 from rdkit.Chem import Descriptors
 from rdkit.Chem import AllChem
 
-sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/tQMC/QMC")
-sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/scripts")
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(script_dir)
+from settings import QMC_PATH, REACTION_PATH_TEMPLATE
+sys.path.append(QMC_PATH)
 
-from useful_functions import execute_shell_command
-from qmmol import QMMol
-from qmconf import QMConf
+from utils import execute_shell_command
+from QMC.qmmol import QMMol
+from QMC.qmconf import QMConf
 
 def find_transistion_state(molecule):
     """Find transistion state by using reaction path method from Grimme lab"""
@@ -36,32 +39,31 @@ def find_transistion_state(molecule):
     ts_object = QMConf(ts_xyz_file, fmt='xyz', label=ts_name)
     
     # The pattern for finding the back reaction barrier
-    pattern = "backward barrier \(kcal\)  :\s*([\d\.]+)"
+    tbr_pattern = "backward barrier \(kcal\)  :\s*([\d\.]+)"
+
+    # The pattern to find the energy
+    energy_pattern = r"\|\s*TOTAL ENERGY\s+(-?\d+\.\d+)\s+Eh\s*\|"
+    energy_match = re.search(energy_pattern, output.decode('utf-8'))
+
+    # Save the energy under results in the QMConf object
+    energy = float(energy_match.group(1)) if energy_match else None
+    ts_object.results['energy'] = energy
 
     # Find all matches in the output string
-    matches = re.findall(pattern, output.decode('utf-8'))
+    tbr_matches = re.findall(tbr_pattern, output.decode('utf-8'))
 
     # The last match is the last backward barrier
-    tbr = float(matches[-1]) if matches else None
+    tbr = float(tbr_matches[-1]) if tbr_matches else None
 
     return ts_object, tbr
 
 
-def main(input_filename):
+def main(input_filename, reaction_path_settings):
     # Load the data
     data = pd.read_pickle(input_filename)
 
     # The path.inp file controls the setting for the reaction path search
     path_file = "path.inp"
-    reaction_path_settings = '''$path
-    nrun=1
-    npoint=25
-    anopt=10
-    kpush=0.003
-    kpull=-0.015
-    ppull=0.05
-    alp=0.9
-    $end'''
 
     # Create the path.inp file
     with open(path_file, 'w') as file:
@@ -100,4 +102,4 @@ def main(input_filename):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(sys.argv[1], REACTION_PATH_TEMPLATE)

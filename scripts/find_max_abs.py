@@ -1,13 +1,15 @@
 import pandas as pd
-import os
 import sys
+import os
 import re
 
-sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/tQMC/QMC")
-sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/scripts")
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(script_dir)
+from settings import XTB4STDA_PATH, STDA_PATH, QMC_PATH
+sys.path.append(QMC_PATH)
 
-from useful_functions import execute_shell_command
-from useful_functions import get_max_absorption
+
+from utils import execute_shell_command, get_max_absorption
 
 
 def find_excited_states(molecule_file_path, charge, spin):
@@ -15,13 +17,13 @@ def find_excited_states(molecule_file_path, charge, spin):
     Calculates excited states for a given molecule using stda return the wavelenghts(nm) and oscillator strengths.
     """
     # Runs a ground state xtb calculation that writes a wfn.xtb with coordinates that is used in the stda step.
-    shell_command = f"/groups/kemi/brq616/speciale/opt/stda/xtb4stda {molecule_file_path} -chrg {charge} -uhf {spin}"
+    shell_command = f"{XTB4STDA_PATH} {molecule_file_path} -chrg {charge} -uhf {spin}"
     print(f"Shell Command: {shell_command}")
     execute_shell_command(shell_command, shell=False)
 
     # Executes the stda calculation for the excitation energies 
     # -e 10 means that all excited stated up to 10 eV are calculated
-    output = execute_shell_command('/groups/kemi/brq616/speciale/opt/stda/stda_v1.6.1 -xtb -e 10', shell=False)
+    output = execute_shell_command(f'{STDA_PATH} -xtb -e 10', shell=False)
 
     # Shows the calculation outputs
     output_string = output.decode('utf-8')

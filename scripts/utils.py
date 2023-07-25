@@ -1,27 +1,28 @@
+import os
+import sys
 import subprocess
 import numpy as np
 from scipy.signal import gaussian
 
-# Constants
-AVOGADROS_NUMBER = 6.02214199e23
-SPEED_OF_LIGHT = 299792458
-ELECTRON_CHARGE = 1.60217662e-19
-ELECTRON_MASS = 9.10938e-31
-PERMITTIVITY_OF_VACUUM = 8.8541878176e-12
-SIGMA_ELECTRON_VOLT = 0.4
-SIGMA_CM = SIGMA_ELECTRON_VOLT * 8065.544
-FACTOR = (AVOGADROS_NUMBER * ELECTRON_CHARGE**2) / (np.log(10) * 2 * ELECTRON_MASS * SPEED_OF_LIGHT**2 * PERMITTIVITY_OF_VACUUM) * np.sqrt(np.log(2)/np.pi) * 1e-1
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(script_dir)
+from settings import WAVELENGTH_RANGE, FACTOR, SIGMA_CM
 
-# Define wavelength range
-WAVELENGTH_RANGE = np.linspace(125, 525, 593)
 
 def gaussian_distribution(wavelength_range, center_wavelength, oscillator_strength, sigma_cm):
-    """Create a gaussian distribution."""
+    """
+    This function creates a Gaussian distribution representing a single absorption peak. 
+    The center of the Gaussian is the transition wavelength, the width is determined by sigma_cm 
+    (the standard deviation), and the height is set by the oscillator strength.
+    """
     distribution = oscillator_strength * np.exp(-4 * np.log(2) * ((1 / wavelength_range - 1 / center_wavelength) / (1e-7 * sigma_cm))**2)
     return distribution
 
 def calculate_absorption_and_max_os_strength(wavelengths, oscillator_strengths):
-    """Calculate the absorption spectrum and max oscillator strength."""
+    """
+    This function calculates the overall absorption spectrum by summing the contributions from 
+    Gaussians centered at each transition wavelength.
+    """
     absorption_spectrum = np.zeros_like(WAVELENGTH_RANGE)
     max_os_strength = np.zeros_like(WAVELENGTH_RANGE)
 
@@ -35,7 +36,10 @@ def calculate_absorption_and_max_os_strength(wavelengths, oscillator_strengths):
     return absorption_spectrum, max_os_strength
 
 def get_max_absorption(wavelengths, oscillator_strengths):
-    """Find the max absorption wavelength, value and corresponding oscillator strength."""
+    """
+    This function finds the maximum absorption wavelength, its value, and the corresponding oscillator strength. 
+    It specifically searches within the range of 185th to 500th wavelength assuming that the range covers the visible light spectrum.
+    """
     absorption_spectrum, max_os_strength = calculate_absorption_and_max_os_strength(wavelengths, oscillator_strengths)
     max_index = np.argmax(absorption_spectrum[185:500]) + 185
     max_wavelength = WAVELENGTH_RANGE[max_index]

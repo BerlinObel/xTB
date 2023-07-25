@@ -1,20 +1,21 @@
 import sys
+import os
 import pandas as pd
 import copy
-from multiprocessing import Pool
 
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
-sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/tQMC/QMC")
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(script_dir)
+from settings import QMC_PATH
+sys.path.append(QMC_PATH)
 
-from qmmol import QMMol
-from qmconf import QMConf
-from calculator.xtb import xTB
-from calculator.orca import ORCA
-from calculator.gaussian import Gaussian
+from QMC.qmmol import QMMol
+from QMC.qmconf import QMConf
+from QMC.calculator.xtb import xTB
 
-from conformers.create_conformers import RotatableBonds
+from QMC.conformers.create_conformers import RotatableBonds
 
 def find_atom_mapping_reactant_to_product(reactant, product):
     """Find and return new atom order in product based on reactant"""

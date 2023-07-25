@@ -25,6 +25,7 @@ Ensure the following dependencies are installed:
    
    Ensure that the dependencies are installed
    Also to be determined how to reliably set up the xTB and stda program to run for anyone
+   Change paths and username in the settings.py file
 
 2. **Input file:**
 
@@ -34,6 +35,7 @@ Ensure the following dependencies are installed:
     - Column B, named `smiles`, should include the corresponding SMILES string.
     - Column C, named `charge`, should include the corresponding charge (often 0).
     - Column D, named `multiplicity`, should include the corresponding multiplicity (often 1).
+    - Column E, named `molecular_weight`, should include molecular weight based on smiles.
 
 3. **Calculate Storage Energies:**
 
@@ -53,7 +55,7 @@ Ensure the following dependencies are installed:
 
     Prepare the data by running: `python data_preparation.py abs`
 
-    Then, run: `python submit_calculations.py batch_list_abs.csv abs`
+    Then, run: `python submit_calculations.py $batch_list_abs.csv abs`
 
     The script will find the excitation energies then calculate and store the maximum absorption wavelengths and oscillator strengths.
 
@@ -63,5 +65,9 @@ Ensure the following dependencies are installed:
 
     The final results will be saved to `final_results.csv`.
 
-    To extract xyz structures, run: `python get_xyz.py final_results.pkl`
+7. **Extract .xyz files:**
+
+    To extract all xyz structures, run: `python get_xyz.py $final_results.pkl all`
+
+    To extract only transistion state xyz structures, run: `python get_xyz.py $final_results.pkl ts`
 

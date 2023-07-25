@@ -1,10 +1,15 @@
 import pandas as pd
 import sys
+import os
 from rdkit import Chem
 from rdkit.Chem import Descriptors
-sys.path.append("/groups/kemi/brq616/speciale/opt/xTB/tQMC/QMC")
-import qmconf
-import os
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(script_dir)
+from settings import QMC_PATH
+sys.path.append(QMC_PATH)
+import QMC.qmconf
+
 
 def write_xyz(compound, name):
     filename = f"{name}_{compound.label}.xyz"

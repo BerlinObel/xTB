@@ -12,8 +12,6 @@ class xTB(Calculator):
 
     program_home = '/groups/kemi/koerstz/opt/xtb/6.1'
     program_path = '/groups/kemi/koerstz/opt/xtb/6.1/bin'
-    # program_home = '/groups/kemi/obel/miniconda3/bin'
-    # program_path = '/groups/kemi/obel/miniconda3/bin/xtb'
 
 
     default_parameters = {'method': 'gfn2',
