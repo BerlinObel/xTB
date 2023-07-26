@@ -86,7 +86,7 @@ def find_ground_state_conformers(name, rdkit_conf, charge, multiplicity, num_cpu
     qmmol.create_random_conformers(threads=num_cpus, num_confs=num_conformers)
 
     # Set up and run optimization
-    xtb_parameters = {'method': 'gfn1', 'opt': 'tight', 'cpus': 1}
+    xtb_parameters = {'method': 'gfn2', 'opt': 'tight', 'cpus': 1}
     qmmol.calc = xTB(parameters=xtb_parameters)
     qmmol.optimize(num_procs=num_cpus, keep_files=False)
 

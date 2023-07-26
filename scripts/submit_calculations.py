@@ -1,4 +1,5 @@
 import os
+import queue
 import sys
 import time
 import pandas as pd
@@ -15,7 +16,7 @@ def prepare_slurm_script(job_name, python_script, cpus, memory, working_dir, fil
     job_suffix = '.csv' if file_suffix == '' else '.pkl'
     slurm_script = SLURM_TEMPLATE.format(
         job_name=job_name, cpus=cpus, memory=memory, working_dir=working_dir,
-        job_suffix=job_suffix, python_script=python_script, file_suffix=file_suffix,
+        job_suffix=job_suffix, python_script=python_script, file_suffix=file_suffix, queue=QUEUE,
     )
 
     slurm_script_filename = f"{job_name}_qsub.tmp"

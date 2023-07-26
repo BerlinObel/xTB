@@ -1,4 +1,4 @@
-# Automated xTB Scripts Workflow
+# Automated xTB Scripts
 
 ## Acknowledgement (not finsihed)
 This work is based on the initial scripts and research conducted by [Initial Author/Contributors Names include links to theirs githubs and all of that]. 
@@ -6,10 +6,29 @@ This work is based on the initial scripts and research conducted by [Initial Aut
 Their fundamental contribution to this project is gratefully acknowledged.
 
 ## Description
-This repository contains scripts for automating the calculation of storage energies, theremal back reaction barriers, and maximum absorption wavelengths using the xTB method. The results are saved as pickled pandas dataframes for efficient storage and retrieval. Each molecule is stored as an RDKit object, allowing easy access to SMILES, XYZ coordinates, and more.
+This repository contains scripts for automating the calculation of storage energies, theremal back reaction barriers, and maximum absorption wavelengths using the xTB method. The results are saved as pickled pandas dataframes for efficient storage and retrieval. Each molecule is stored as an RDKit object within a QMmol object, allowing easy access to SMILES, XYZ coordinates, and more.
+
+## File descriptions
+`data_preparation.py`
+
+`electronic_azo_conf_search.py`
+
+`find_max_abs.py`
+
+`find_ts.py`
+
+`get_xyz.py`
+
+`read_pickle.py`
+
+`settings.py`
+
+`submit_calculations.py`
+
+`utils.py`
 
 ## Output File Structure
-Output files are generated at each stage of the workflow and saved in pickled format. Each output file is a DataFrame where each row corresponds to a molecule. The columns contain the properties calculated in each step, and the molecule itself is stored as an RDKit Mol object.
+Output files are generated at each stage of the workflow and saved in pickled format. Each output file is a DataFrame where each row corresponds to a molecule. The columns contain the properties calculated in each step, and the molecule itself is stored as an RDKit Mol object within a QMmol object.
 
 ## Prerequisites (not finished)
 Ensure the following dependencies are installed:

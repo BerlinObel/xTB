@@ -45,7 +45,7 @@ SLURM_TEMPLATE = '''\
 #SBATCH --error={working_dir}/{job_name}.stderr
 #SBATCH --output={working_dir}/{job_name}.stdout
 #SBATCH --time=1000:00:00
-#SBATCH --partition=chem
+#SBATCH --partition={queue}
 #SBATCH --no-requeue
 
 cd /scratch/$SLURM_JOB_ID
