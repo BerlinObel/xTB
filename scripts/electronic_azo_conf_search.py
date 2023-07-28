@@ -66,7 +66,18 @@ def reorder_product_to_match_reactant(reactant, product):
 
 def generate_product_from_reactant(reactant_smi):
     """Generate product from reactant SMILES string"""
+    # Azobenzene
     product_smi = reactant_smi.replace("/N=N/", "/N=N\\")
+
+    # NBD
+    # Reaction Smarts
+    # smarts = "[C:1]1[C:2]2[C:3]=[C:4][C:5]1[C:6]=[C:7]2>>[C:1]1[C:2]2[C:3]3[C:4]4[C:5]1[C:6]4[C:7]23"
+    # __rxn__ = AllChem.ReactionFromSmarts(smarts)
+    # reactant_mol =  Chem.MolFromSmiles(reactant_smi)
+    # 
+    # product_mol = __rxn__.RunReactants((reactant_mol,))[0][0]
+    # product_smi = Chem.MolToSmiles(product_mol)
+    
     return reactant_smi, product_smi
 
 def find_ground_state_conformers(name, rdkit_conf, charge, multiplicity, num_cpus):
