@@ -69,7 +69,7 @@ anopt=10
 kpush=0.003
 kpull=-0.015
 ppull=0.05
-alp=0.9
+alp=1.0
 $end'''
 
 ## 2 runs
