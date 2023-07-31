@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.signal import gaussian
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -25,13 +26,15 @@ def calculate_absorption_and_max_os_strength(wavelengths, oscillator_strengths):
     """
     absorption_spectrum = np.zeros_like(WAVELENGTH_RANGE)
     max_os_strength = np.zeros_like(WAVELENGTH_RANGE)
-
+    
     for i, wavelength in enumerate(wavelengths):
         contribution = gaussian_distribution(WAVELENGTH_RANGE, wavelength, oscillator_strengths[i], SIGMA_CM)
         absorption_spectrum += contribution
         max_os_strength[np.argmax(contribution)] = oscillator_strengths[i]
 
     absorption_spectrum *= FACTOR / SIGMA_CM
+
+    # plt.plot(WAVELENGTH_RANGE, absorption_spectrum)
 
     return absorption_spectrum, max_os_strength
 
