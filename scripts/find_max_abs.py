@@ -1,15 +1,15 @@
+from utils import execute_shell_command
+from settings import XTB4STDA_PATH, STDA_PATH, QMC_PATH
 import pandas as pd
 import sys
 import os
 import re
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(script_dir)
-from settings import XTB4STDA_PATH, STDA_PATH, QMC_PATH
+# Add the directory of the script to the Python path
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+
+
 sys.path.append(QMC_PATH)
-
-
-from utils import execute_shell_command, get_max_absorption
 
 
 def find_excited_states(molecule_file_path, charge, spin):
@@ -21,7 +21,7 @@ def find_excited_states(molecule_file_path, charge, spin):
     print(f"Shell Command: {shell_command}")
     execute_shell_command(shell_command, shell=False)
 
-    # Executes the stda calculation for the excitation energies 
+    # Executes the stda calculation for the excitation energies
     # -e 10 means that all excited stated up to 10 eV are calculated
     output = execute_shell_command(f'{STDA_PATH} -xtb -e 10', shell=False)
 
@@ -51,7 +51,7 @@ def find_excited_states(molecule_file_path, charge, spin):
             # match[4] is the oscillator strength (fL)
             wavelengths.append(float(match.group(3)))
             osc_strengths.append(float(match.group(4)))
-    
+
     return wavelengths, osc_strengths
 
 
@@ -64,8 +64,9 @@ def calculate_absorbtion(compound):
     compound.write_xyz(to_file=True)
 
     # The results of the calculation
-    wavelengths, osc_strengths = find_excited_states(xyz_file_path, charge, spin)
-    
+    wavelengths, osc_strengths = find_excited_states(
+        xyz_file_path, charge, spin)
+
     # Find index of highest oscillator strength (skipping first value) and corresponding wavelength
     max_index = osc_strengths.index(max(osc_strengths[1:]))
     max_osc, max_wavelength = osc_strengths[max_index], wavelengths[max_index]
@@ -74,8 +75,9 @@ def calculate_absorbtion(compound):
     print(f"Corresponding wavelength: {max_wavelength}")
 
     # os.remove(xyz_file_path)
-    
+
     return max_wavelength, max_osc
+
 
 if __name__ == '__main__':
     data_df = pd.read_pickle(sys.argv[1])
@@ -88,8 +90,9 @@ if __name__ == '__main__':
         ts_qmconf = compound.ts
         storage = compound.storage
         tbr = compound.tbr
-        
-        max_abs_reactant, osc_str_reactant = calculate_absorbtion(compound.reac)
+
+        max_abs_reactant, osc_str_reactant = calculate_absorbtion(
+            compound.reac)
         max_abs_product, osc_str_product = calculate_absorbtion(compound.prod)
 
         # Save the results
@@ -103,7 +106,6 @@ if __name__ == '__main__':
                               'osc_str_reac': osc_str_reactant,
                               'max_abs_prod': max_abs_product,
                               'osc_str_prod': osc_str_product})
-        
 
     results_df = pd.DataFrame(compound_list)
     pickle_name = sys.argv[1].split('/')[0].split('.')[0] + '_abs.pkl'
