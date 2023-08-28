@@ -7,11 +7,12 @@ import sys
 import os
 from rdkit import Chem
 from rdkit.Chem import Descriptors
+# Add the directory of the script to the Python path
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(script_dir)
 from settings import QMC_PATH
 sys.path.append(QMC_PATH)
+
 from QMC.qmconf import QMConf
 
 

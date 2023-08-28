@@ -1,10 +1,13 @@
 import numpy as np
+import os
 from typing import Dict, Optional
+
+# Base path - replace with the path to the root directory of your project
+BASE_PATH = "/groups/kemi/brq616/speciale/opt/xTB"
 
 USER = "brq616"
 QUEUE = "kemi6"
-QMC_PATH = "/groups/kemi/brq616/speciale/opt/xTB/tQMC/QMC"
-
+QMC_PATH = os.path.join(BASE_PATH, "tQMC/QMC")
 
 ## Path to xtb programs
 
@@ -13,10 +16,9 @@ STDA_PATH = "/groups/kemi/brq616/speciale/opt/stda/stda_v1.6.1"
 
 ## Calculation script paths
 
-STORAGE_ENERGY_SCRIPT = '/groups/kemi/brq616/speciale/opt/xTB/scripts/electronic_azo_conf_search.py'
-TRANSITION_STATE_SCRIPT = '/groups/kemi/brq616/speciale/opt/xTB/scripts/find_ts.py'
-ABSORPTION_SCRIPT = '/groups/kemi/brq616/speciale/opt/xTB/scripts/find_max_abs.py'
-
+STORAGE_ENERGY_SCRIPT = os.path.join(BASE_PATH, "scripts/electronic_azo_conf_search.py")
+TRANSITION_STATE_SCRIPT = os.path.join(BASE_PATH, "scripts/find_ts.py")
+ABSORPTION_SCRIPT = os.path.join(BASE_PATH, "scripts/find_max_abs.py")
 
 ## SLURM template and job types for submit_calculations.py
 
@@ -69,7 +71,7 @@ anopt=10
 kpush=0.003
 kpull=-0.015
 ppull=0.05
-alp=1.0
+alp=0.8
 $end'''
 
 ## 2 runs

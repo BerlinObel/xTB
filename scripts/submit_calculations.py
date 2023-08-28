@@ -7,8 +7,9 @@ import numpy as np
 import textwrap
 from typing import List, Set
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(script_dir)
+
+# Add the directory of the script to the Python path
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from settings import SLURM_TEMPLATE, JOB_TYPE_CONFIG, USER, QUEUE
 
 def prepare_slurm_script(job_name, python_script, cpus, memory, working_dir, file_suffix):

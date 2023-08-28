@@ -5,8 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import gaussian
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(script_dir)
+# Add the directory of the script to the Python path
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from settings import WAVELENGTH_RANGE, FACTOR, SIGMA_CM
 
 
