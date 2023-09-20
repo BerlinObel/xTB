@@ -2,11 +2,13 @@ import numpy as np
 import os
 from typing import Dict, Optional
 
+# Path to database
+DB_PATH = "/groups/kemi/brq616/speciale/molecule_data.db"
 # Base path - replace with the path to the root directory of your project
 BASE_PATH = "/groups/kemi/brq616/speciale/opt/xTB"
 
 USER = "brq616"
-QUEUE = "kemi6"
+QUEUE = "chem"
 QMC_PATH = os.path.join(BASE_PATH, "tQMC/QMC")
 
 ## Path to xtb programs
@@ -16,7 +18,7 @@ STDA_PATH = "/groups/kemi/brq616/speciale/opt/stda/stda_v1.6.1"
 
 ## Calculation script paths
 
-STORAGE_ENERGY_SCRIPT = os.path.join(BASE_PATH, "scripts/electronic_azo_conf_search.py")
+STORAGE_ENERGY_SCRIPT = os.path.join(BASE_PATH, "scripts/electronic_conf_search.py")
 TRANSITION_STATE_SCRIPT = os.path.join(BASE_PATH, "scripts/find_ts.py")
 ABSORPTION_SCRIPT = os.path.join(BASE_PATH, "scripts/find_max_abs.py")
 
@@ -25,16 +27,15 @@ ABSORPTION_SCRIPT = os.path.join(BASE_PATH, "scripts/find_max_abs.py")
 JOB_TYPE_CONFIG: Dict[str, Dict[str, Optional[str]]] = {
     'storage': {
         'python_script': STORAGE_ENERGY_SCRIPT,
-        'file_suffix': '',
-        'chunk_size': None,  # This will be filled in based on user input
+        'job_suffix': '_energy',
     },
     'tbr': {
         'python_script': TRANSITION_STATE_SCRIPT,
-        'file_suffix': '_new',
+        'job_suffix': '_TS',
     },
     'abs': {
         'python_script': ABSORPTION_SCRIPT,
-        'file_suffix': '_abs',
+        'job_suffix': '_abs',
     },
 }
 
@@ -54,14 +55,9 @@ cd /scratch/$SLURM_JOB_ID
 
 echo "Job id: $SLURM_JOB_ID"
 
-# copy batch file
-cp {working_dir}/{job_name}{job_suffix} .
-
 # run python code
-python {python_script} {job_name}{job_suffix} {memory}
+python -u {python_script} {batch_name} {memory}
 
-# copy data back
-cp *{job_name}{file_suffix}.pkl {working_dir}
 '''
 
 REACTION_PATH_TEMPLATE = '''$path
@@ -74,95 +70,6 @@ ppull=0.05
 alp=0.8
 $end'''
 
-## 2 runs
-# '''$path
-# nrun=2
-# npoint=25
-# anopt=10
-# kpush=0.003
-# kpull=-0.015
-# ppull=0.05
-# alp=0.9
-# $end'''
-
-## everything
-# '''$path
-# nrun=2
-# npoint=30
-# anopt=10
-# kpush=0.001
-# kpull=-0.01
-# ppull=0.04
-# alp=0.9
-# $end'''
-
-## 2 runs and 30 points
-# '''$path
-# nrun=2
-# npoint=30
-# anopt=10
-# kpush=0.003
-# kpull=-0.015
-# ppull=0.05
-# alp=0.9
-# $end'''
-
-## Lower push pull and 30 points
-# '''$path
-# nrun=1
-# npoint=30
-# anopt=10
-# kpush=0.001
-# kpull=-0.01
-# ppull=0.04
-# alp=0.9
-# $end'''
-
-## Lower push pull plus two runs
-# '''$path
-# nrun=2
-# npoint=25
-# anopt=10
-# kpush=0.001
-# kpull=-0.01
-# ppull=0.04
-# alp=0.9
-# $end'''
-
-## Lower push pull
-# '''$path
-# nrun=1
-# npoint=25
-# anopt=10
-# kpush=0.001
-# kpull=-0.01
-# ppull=0.04
-# alp=0.9
-# $end'''
-
-## 30 points
-# '''$path
-# nrun=1
-# npoint=30
-# anopt=10
-# kpush=0.003
-# kpull=-0.015
-# ppull=0.05
-# alp=0.9
-# $end'''
-
-## Original
-# '''$path
-# nrun=1
-# npoint=25
-# anopt=10
-# kpush=0.003
-# kpull=-0.015
-# ppull=0.05
-# alp=0.9
-# $end'''
-
-## Constants and settings for absorbtion calculations in "find_max_abs.py"
 
 # Constants
 AVOGADROS_NUMBER = 6.02214199e23

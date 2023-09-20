@@ -10,14 +10,14 @@ from typing import List, Set
 
 # Add the directory of the script to the Python path
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+from db_utils import insert_data, connect_db, close_db
 from settings import SLURM_TEMPLATE, JOB_TYPE_CONFIG, USER, QUEUE
 
-def prepare_slurm_script(job_name, python_script, cpus, memory, working_dir, file_suffix):
+
+def prepare_slurm_script(batch_name, job_name, python_script, cpus, memory, working_dir):
     """Creates a SLURM script to submit a calculation to the queue."""
-    job_suffix = '.csv' if file_suffix == '' else '.pkl'
-    slurm_script = SLURM_TEMPLATE.format(
-        job_name=job_name, cpus=cpus, memory=memory, working_dir=working_dir,
-        job_suffix=job_suffix, python_script=python_script, file_suffix=file_suffix, queue=QUEUE,
+    slurm_script = SLURM_TEMPLATE.format(batch_name = batch_name,
+        job_name=job_name, cpus=cpus, memory=memory, working_dir=working_dir, python_script=python_script, queue=QUEUE,
     )
 
     slurm_script_filename = f"{job_name}_qsub.tmp"
@@ -32,11 +32,13 @@ def submit_slurm_job(slurm_script):
     batch_id = os.popen("sbatch " + slurm_script).read()
     return batch_id.strip().split()[-1] 
 
-def run_calculations(batch_files: List[str], python_script: str, memory: int, cpus: int, max_running_jobs: int, file_suffix: str):
+def run_calculations(batch_files: List[str], python_script: str, memory: int, cpus: int, max_running_jobs: int, job_suffix: str):
     """Runs a batch of calculations on a SLURM cluster."""
     submitted_jobs = set()
     for batch_file in batch_files:
-        slurm_script = prepare_slurm_script(batch_file, python_script, cpus, memory, os.getcwd(), file_suffix)
+        job_name = f"{batch_file}{job_suffix}"
+        batch_name = batch_file
+        slurm_script = prepare_slurm_script(batch_name, job_name, python_script, cpus, memory, os.getcwd())
         batch_id = submit_slurm_job(slurm_script)
         submitted_jobs.add(batch_id)
 
@@ -62,32 +64,30 @@ def manage_job_submission(max_running_jobs: int, submitted_jobs: Set[str]) -> No
         time.sleep(10)
 
 if __name__ == "__main__":
-    cpus = 2
+    cpus = 8
     memory = "8GB"
     max_running_jobs = 200
 
-    data_file = sys.argv[1]
-    job_type = sys.argv[2]
-
+    job_type = sys.argv[1]
+    
     if job_type not in JOB_TYPE_CONFIG:
         print(f"Unknown job type: {job_type}")
         sys.exit(1)
-
+        
     config = JOB_TYPE_CONFIG[job_type]
-
-    if job_type == "storage":
-        config['chunk_size'] = int(input("Batch size: "))
-        data = pd.read_csv(data_file)
-        chunks = [data[i:i+config['chunk_size']] for i in range(0, data.shape[0], config['chunk_size'])]
-        batch_files = []
-        for idx, chunk in enumerate(chunks):
-            chunk_name = f"smiles_batch-{idx}"
-            chunk.to_csv(chunk_name + ".csv", index=False)
-            batch_files.append(chunk_name)
-    else:
-        batch_files = np.loadtxt(data_file, dtype=str).tolist()
-
-    run_calculations(batch_files, config['python_script'], memory, cpus, max_running_jobs, config['file_suffix'])
-
-
+    # Mapping of job types to the calculation stages that should be used to find batches ready for processing
+    stage_mapping = {
+        'storage': 'storage',
+        'tbr': 'storage_completed',
+        'abs': 'storage_completed',
+        # ... (add other job types as needed)
+    }
+    # Query the database to get a list of distinct batch IDs that are at the appropriate stage for this job type
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT BatchID FROM MoleculeData WHERE CalculationStage = ?", (stage_mapping[job_type],))
+    batch_files = [row[0] for row in cursor.fetchall()]
+    close_db(conn)
+    
+    run_calculations(batch_files, config['python_script'], memory, cpus, max_running_jobs, config['job_suffix'])
     
