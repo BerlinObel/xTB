@@ -1,16 +1,29 @@
-from utils import execute_shell_command
-from settings import XTB4STDA_PATH, STDA_PATH, QMC_PATH
 import pandas as pd
 import sys
 import os
 import re
+import time
 
 # Add the directory of the script to the Python path
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
-
-
+from utils import execute_shell_command, get_statistics, format_time
+from settings import XTB4STDA_PATH, STDA_PATH, QMC_PATH
+from db_utils import retrieve_data, update_data
 sys.path.append(QMC_PATH)
 
+def repeat_stda_calc(compound, n_runs):
+    max_abs_reactant_lst = []
+    osc_str_reactant_lst = []
+    max_abs_product_lst = []
+    osc_str_product_lst = []
+    while len(max_abs_product_lst) < n_runs:
+        max_abs_reactant_value, osc_str_reactant_value = calculate_absorbtion(compound.ReactantObject)
+        max_abs_product_value, osc_str_product_value = calculate_absorbtion(compound.ProductObject)
+        max_abs_reactant_lst.append(max_abs_reactant_value)
+        osc_str_reactant_lst.append(osc_str_reactant_value)
+        max_abs_product_lst.append(max_abs_product_value)
+        osc_str_product_lst.append(osc_str_product_value)
+    return max_abs_reactant_lst, osc_str_reactant_lst, max_abs_product_lst, osc_str_product_lst
 
 def find_excited_states(molecule_file_path, charge, spin):
     """
@@ -43,6 +56,9 @@ def find_excited_states(molecule_file_path, charge, spin):
             continue
         if not start_reading:
             continue
+        # If there is an empty line, stop reading
+        if line.strip() == '':
+            break
         # After the starting line, apply regex
         match = data_pattern.match(line)
         if match:
@@ -78,37 +94,52 @@ def calculate_absorbtion(compound):
 
     return max_wavelength, max_osc
 
+def main(batch_id):
+    # Step 1: Load the data from the database
+    filters = {'BatchID': batch_id, 'CalculationStage': 'storage_completed'}
+    data = retrieve_data(filters)
+    print(data)
+    start_time = time.time()
+    # Step 2: Perform the calculations and store the new data
+    results = []
+    for index, compound in data.iterrows():
+        print(f"Index: {index+1}/{len(data)}, Compound: {compound.HashedName}")
+        stat_dictionary = {}
+        max_abs_reactant, osc_str_reactant = calculate_absorbtion(
+            compound.ReactantObject)
+        max_abs_product, osc_str_product = calculate_absorbtion(compound.ProductObject)
+
+        max_abs_reactant_lst, osc_str_reactant_lst, max_abs_product_lst, osc_str_product_lst = repeat_stda_calc(compound, 21)
+        stat_dictionary["Reactant_Max_Abs"] = get_statistics(max_abs_reactant_lst)
+        stat_dictionary["Reactant_Osc"] = get_statistics(osc_str_reactant_lst)
+        stat_dictionary["Product_Max_Abs"] = get_statistics(max_abs_product_lst)
+        stat_dictionary["Product_Osc"] = get_statistics(osc_str_product_lst)  
+            
+        results.append({
+            'HashedName': str(compound.HashedName),
+            'BatchID': str(compound.BatchID),
+            'MaxAbsorptionProduct': max_abs_product,
+            'MaxOscillatorStrengthProduct': osc_str_product,
+            'MaxAbsorptionReactant': max_abs_reactant,
+            'MaxOscillatorStrengthReactant': osc_str_reactant,
+            'CalculationStage': 'abs_completed',
+            'ExcitationStats': stat_dictionary
+        })
+
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        formatted_elapsed_time = format_time(elapsed_time)
+        # Gather results
+        results_df = pd.DataFrame(results)
+        print(f"{batch_id} Finished:")
+        print(results_df)
+        print(f'Time: {formatted_elapsed_time}')
+
+
+        # Update the database with the results
+        update_data(results_df)
+
 
 if __name__ == '__main__':
-    data_df = pd.read_pickle(sys.argv[1])
-    compound_list = list()
-
-    # Do the calculations for each compund in the batch
-    for compound in data_df.itertuples():
-        reac_qmconf = compound.reac
-        prod_qmconf = compound.prod
-        ts_qmconf = compound.ts
-        storage = compound.storage
-        tbr = compound.tbr
-
-        max_abs_reactant, osc_str_reactant = calculate_absorbtion(
-            compound.reac)
-        max_abs_product, osc_str_product = calculate_absorbtion(compound.prod)
-
-        # Save the results
-        compound_list.append({'rep': compound.rep,
-                              'reac': reac_qmconf,
-                              'prod': prod_qmconf,
-                              'ts': ts_qmconf,
-                              'storage': storage,
-                              'tbr': tbr,
-                              'max_abs_reac': max_abs_reactant,
-                              'osc_str_reac': osc_str_reactant,
-                              'max_abs_prod': max_abs_product,
-                              'osc_str_prod': osc_str_product})
-
-    results_df = pd.DataFrame(compound_list)
-    pickle_name = sys.argv[1].split('/')[0].split('.')[0] + '_abs.pkl'
-    print(f"pickle name: {pickle_name}")
-    print(results_df)
-    results_df.to_pickle(pickle_name)
+    batch_id = sys.argv[1]
+    main(batch_id)

@@ -1,14 +1,43 @@
 import os
 import sys
+import re
 import subprocess
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import gaussian
+import pandas as pd
 
 # Add the directory of the script to the Python path
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from settings import WAVELENGTH_RANGE, FACTOR, SIGMA_CM
 
+from datetime import timedelta
+
+def format_time(seconds):
+
+    delta = timedelta(seconds=seconds)
+    days = delta.days
+    hours, remainder = divmod(delta.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    time_str = f"{days} days, {hours} hours, {minutes} minutes, {seconds} seconds"
+
+    return time_str
+
+def get_statistics(value_list):
+    values = np.array(value_list)
+
+    statistics_data = {
+    "value_mean": np.mean(values),
+    "value_median": np.median(values),
+    "value_std": np.std(values),
+    "value_variance": np.var(values),
+    "value_range": np.ptp(values),
+    "value_len": len(values)
+    }
+
+    statistics_dataframe = pd.DataFrame([statistics_data]) 
+    return statistics_dataframe
+    
 
 def gaussian_distribution(wavelength_range, center_wavelength, oscillator_strength, sigma_cm):
     """
@@ -52,7 +81,7 @@ def get_max_absorption(wavelengths, oscillator_strengths):
     return max_wavelength, max_absorption, corresponding_max_os_strength
 
 # Execute programs in the shell
-def execute_shell_command(cmd, shell=False):
+def execute_shell_command(cmd, shell=False, timeout=None):
     """
     Executes a shell command and waits for it to finish execution.
     """
@@ -61,6 +90,35 @@ def execute_shell_command(cmd, shell=False):
     else:
         cmd = cmd.split()
         p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    p.wait()
-    output, _ = p.communicate()
+    
+    try:
+        p.wait(timeout=timeout)
+        output, _ = p.communicate()
+    except subprocess.TimeoutExpired:
+        # print(f"The command '{cmd}' timed out")
+        p.kill()
+        output = None
+    except Exception as e:
+        print(f"An error occurred while executing the command '{cmd}': {e}")
+        output = 999
+
     return output
+
+def get_total_energy_xtb(output):
+
+        if output == None:
+            # print("Output is None")
+            energy = None
+        else:
+            # The pattern to find the energy
+            energy_pattern = r"\|\s*TOTAL ENERGY\s+(-?\d+\.\d+)\s+Eh\s*\|"
+            energy_match = re.search(energy_pattern, output.decode('utf-8'))
+
+            # Save the energy under results in the QMConf object
+            energy = float(energy_match.group(1)) if energy_match else None
+        return energy
+
+def write_xyz(compound, name):
+    filename = f"{name}_{compound.label}.xyz"
+    compound.write_xyz(to_file=True)
+    print(f"Written file: {filename}")
