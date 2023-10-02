@@ -5,7 +5,7 @@ import copy
 import re
 
 import concurrent.futures
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from concurrent.futures import ThreadPoolExecutor, TimeoutError, as_completed
 
 import time
 from rdkit import Chem
@@ -22,7 +22,7 @@ from QMC.conformers.create_conformers import RotatableBonds
 from QMC.calculator.xtb import xTB
 from QMC.qmconf import QMConf
 from QMC.qmmol import QMMol
-from utils import execute_shell_command, get_total_energy_xtb, get_statistics
+from utils import execute_shell_command, get_total_energy_xtb, get_statistics, format_time
 
 def find_atom_mapping_reactant_to_product(reactant, product):
     """Find and return new atom order in product based on reactant"""
@@ -80,7 +80,18 @@ def reorder_product_to_match_reactant(reactant, product):
 def generate_product_from_reactant(reactant_smi):
     """Generate product from reactant SMILES string"""
     # Azobenzene
-    product_smi = reactant_smi.replace("/N=N/", "/N=N\\")
+    if "/N=N/" in reactant_smi:
+        # Replace /N=N/ with /N=N\ in the reactant to create the product
+        product_smi = reactant_smi.replace("/N=N/", "/N=N\\")
+    elif "N=N" in reactant_smi:
+        # Replace N=N with /N=N/ in the reactant first
+        reactant_smi_new = reactant_smi.replace("N=N", "/N=N/")
+        # Then, replace /N=N/ with /N=N\ to create the product
+        product_smi = reactant_smi_new.replace("/N=N/", "/N=N\\")
+        reactant_smi = reactant_smi_new
+    else:
+        # If neither /N=N/ nor N=N are present, return None or some default value
+        product_smi = None
 
     # NBD
     # nbd_reaction_smarts = "[C:1]1[C:2]2[C:3]=[C:4][C:5]1[C:6]=[C:7]2>>[C:1]1[C:2]2[C:3]3[C:4]4[C:5]1[C:6]4[C:7]23"
@@ -118,58 +129,107 @@ def create_conformers(name, rdkit_conf, charge, multiplicity, num_cpus):
     
     return qmmol.conformers
 
-def optimize_conformer(conformer):
+def optimize_conformer(conformer, max_timeouts=15):
 
-    conformer_name = conformer.label
-    xyz_file = f"{conformer_name}.xyz"
-    xyz_result = "xtbopt.xyz"
+    timeout_counter = 0  # Counter to keep track of consecutive timeouts
+
+    while timeout_counter < max_timeouts:
+        conformer_name = conformer.label
+        xyz_file = f"{conformer_name}.xyz"
+        xyz_result = "xtbopt.xyz"
+
+        conformer.write_xyz(to_file=True)
+        command_input = f"xtb {xyz_file} --gfn 1 --opt crude"
+        output = execute_shell_command(command_input, shell=False, timeout=1300)
+        
+        if output is None:
+            print("Optimization for conformer timed out.")
+            timeout_counter += 1  # Increment the timeout counter
+            continue  # Skip the rest of the loop and try again
+        if output == 999:
+            print("Calculation Error")
+            timeout_counter = 0  # Reset the timeout counter
+        else:
+            # Reset the timeout counter since it's a successful run
+            timeout_counter = 0  
+            
+            energy = get_total_energy_xtb(output)
+            optimized_conformer = QMConf(xyz_result, fmt='xyz', label=conformer_name)
+            optimized_conformer.results['energy'] = energy
+
+            return optimized_conformer
     
-    conformer.write_xyz(to_file=True)
-    command_input = f"xtb {xyz_file} --gfn 1 --opt crude"
-    output = execute_shell_command(command_input, shell=False, timeout=100)
-    
-    energy = get_total_energy_xtb(output)
-    
-    optimized_conformer = QMConf(xyz_result, fmt='xyz', label=conformer_name)
-    optimized_conformer.results['energy'] = energy
-     
-    return optimized_conformer
+    # If the loop ends without returning, it means we hit the maximum number of timeouts
+    raise TimeoutError(f"Optimization for conformer timed out {max_timeouts} times in a row.")
+
 
 def find_and_validate_lowest_energy_conformer(initial_smiles, optimized_confs):
+    
+    if not optimized_confs:
+        print("Error: No optimized conformers available.")
+        return None
+    
+    # Filter out conformers where energy is None
+    valid_conformers = [conf for conf in optimized_confs if conf.results['energy'] is not None]
+    
+    if not valid_conformers:
+        print("Error: No conformers with valid energy.")
+        return None
 
-    lowest_energy_conformer = min(optimized_confs, key=lambda x: x.results['energy'])
+    lowest_energy_conformer = min(valid_conformers, key=lambda x: x.results['energy'])
     conf_smiles = Chem.MolToSmiles(Chem.RemoveHs(lowest_energy_conformer.get_rdkit_mol()))
     
     index = 1
     while initial_smiles != conf_smiles:
-        optimized_confs.remove(lowest_energy_conformer)
-        new_lowest_energy_conformer = min(optimized_confs, key=lambda x: x.results['energy'])
-        conf_smiles = Chem.MolToSmiles(Chem.RemoveHs(new_lowest_energy_conformer.get_rdkit_mol()))
+        valid_conformers.remove(lowest_energy_conformer)
+        
+        if not valid_conformers:
+            print("Error: No more valid conformers to check.")
+            return None 
+        
+        lowest_energy_conformer = min(valid_conformers, key=lambda x: x.results['energy'])
+        conf_smiles = Chem.MolToSmiles(Chem.RemoveHs(lowest_energy_conformer.get_rdkit_mol()))
         
         index += 1
-        if len(optimized_confs) < index:
-            sys.exit('Error: no conformers match the initial input')
-            
+        if len(valid_conformers) < index:
+            print("Error: no conformers match the initial input")
+            return None
+    
     return lowest_energy_conformer
 
 def find_ground_state_conformers(name, rdkit_conf, charge, multiplicity, num_cpus):
     all_conformers = create_conformers(name, rdkit_conf, charge, multiplicity, num_cpus)
     optimized_confs = []  # List to gather all optimized conformers
+    
+    # Dictionary to keep track of the number of optimization attempts for each conformer
+    optimization_attempts = {conformer: 0 for conformer in all_conformers}
 
+    # Initial submission
     with ThreadPoolExecutor(max_workers=num_cpus) as executor:
         future_to_conformer = {executor.submit(optimize_conformer, conformer): conformer for conformer in all_conformers}
-        
-        for future in concurrent.futures.as_completed(future_to_conformer):
-            conformer = future_to_conformer[future]
+    
+        while future_to_conformer:
+            for future in as_completed(future_to_conformer):
+                conformer = future_to_conformer.pop(future)
 
-            try:
-                optimized_conformer = future.result()
-                # Append the successfully computed optimized conformer to the list
-                optimized_confs.append(optimized_conformer)
-            except TimeoutError:
-                print(f"The task for {conformer.label} did not complete within the timeout")
-            except Exception as exc:
-                print(f"The task for {conformer.label} raised an exception: {exc}")
+                try:
+                    optimized_conformer = future.result()
+                    optimized_confs.append(optimized_conformer)
+                except TimeoutError:
+                    print(f"The task for {conformer.label} did not complete within the timeout")
+
+                    # Add safe-check and logging here
+                    if conformer not in optimization_attempts:
+                        print(f"Conformer {conformer.label} not found in optimization_attempts!")
+                        optimization_attempts[conformer] = 0  # Initialize it
+
+                    optimization_attempts[conformer] += 1
+
+                    # Check if we should retry
+                    if optimization_attempts[conformer] < 5 and len(optimized_confs) < 5:
+                        future_to_conformer[executor.submit(optimize_conformer, conformer)] = conformer
+                except Exception as exc:
+                    print(f"Optimizing {conformer.label} raised an exception: {exc}")
 
     initial_smiles = Chem.MolToSmiles(Chem.RemoveHs(all_conformers[0].get_rdkit_mol()))
     
@@ -199,108 +259,141 @@ def perform_ground_state_search(name, smi, charge, multiplicity, num_cpus):
     reactant_smi, product_smi = generate_product_from_reactant(smi)
 
     reactant_mol = Chem.AddHs(Chem.MolFromSmiles(reactant_smi))
+
     # Attempt to reorder product to match reactant
     try:
-        print("Attempting to reorder product...")
+        print("Attempting to reorder product to match reactant")
         product_mol = reorder_product_to_match_reactant(
             reactant_mol, Chem.AddHs(Chem.MolFromSmiles(product_smi)))
     except:
-        print("Product reorder failed, using original order...")
+        print("Product reorder failed, using original order")
         product_mol = Chem.AddHs(Chem.MolFromSmiles(product_smi))
 
+    reactant_qmconf = None
+    product_qmconf = None
+    stat_dictionary = {}
+
     for molecule, suffix in [(reactant_mol, "_r"), (product_mol, "_p")]:
+        # Skip product optimization if reactant ground state is None
+        if suffix == '_p' and reactant_qmconf is None:
+            print("Skipping product optimization as reactant ground state is None.")
+            continue
+        
         AllChem.EmbedMolecule(molecule)
         rdkit_conf = molecule.GetConformer()
         molecule_name = name + suffix
-        stat_dictionary = {}
-        # Conduct ground state conformer search
+        
         if suffix == '_r':
-            try:
-                print(f"Starting reactant conformer search for {molecule_name}")
-                reactant_qmconf, energy_stats, rmsd_stats = find_ground_state_conformers(
-                    molecule_name, rdkit_conf, charge, multiplicity, num_cpus)
-                stat_dictionary["Reactant_Energy"] = energy_stats
-                stat_dictionary["Reactant_RMSD"] = rmsd_stats
+            molecule_type = "Reactant"
+        else:
+            molecule_type = "Product"
+        
+        try:
+            qmconf, energy_stats, rmsd_stats = find_ground_state_conformers(
+                molecule_name, rdkit_conf, charge, multiplicity, num_cpus)
+            stat_dictionary[f"{molecule_type}_Energy"] = energy_stats
+            stat_dictionary[f"{molecule_type}_RMSD"] = rmsd_stats
+            
+            if molecule_type == "Reactant":
+                reactant_qmconf = qmconf
+            else:
+                product_qmconf = qmconf
                 
-            except:
-                print("Reactant conformer search failed, retrying without reordering...")
-                retry_count = 0
-                reactant_qmconf = None
-                while reactant_qmconf is None and retry_count < 40:
-                    try:
-                        reactant_qmconf, energy_stats, rmsd_stats = retry_ground_state_search(
-                        molecule_name, rdkit_conf, charge, multiplicity, num_cpus)
-                        stat_dictionary["Reactant_Energy"] = energy_stats
-                        stat_dictionary["Reactant_RMSD"] = rmsd_stats
-                    except:
-                        retry_count += 1
-                        print(f"Retry failed: {retry_count}")
-        elif suffix == '_p':
-            try:
-                print(f"Starting product conformer search for {molecule_name}")
-                product_qmconf, energy_stats, rmsd_stats = find_ground_state_conformers(
-                    molecule_name, rdkit_conf, charge, multiplicity, num_cpus)
-                stat_dictionary["Product_Energy"] = energy_stats
-                stat_dictionary["Product_RMSD"] = rmsd_stats
-            except:
-                print("Product conformer search failed, retrying without reordering...")
-                retry_count = 0
-                product_qmconf = None
-                while product_qmconf is None and retry_count < 40:
-                    try:
-                        product_qmconf, energy_stats, rmsd_stats = retry_ground_state_search(
-                        molecule_name, rdkit_conf, charge, multiplicity, num_cpus)
-                        stat_dictionary["Product_Energy"] = energy_stats
-                        stat_dictionary["Product_RMSD"] = rmsd_stats
-                    except:
-                        retry_count += 1
-                        print(f"Retry failed: {retry_count}")
+                
+        except Exception as e:
+            print(f"Unable to find ground state conformer raised exception: {e}")
+            print(f"Retrying {molecule_type} conformer search")
+            retry_count = 0
+            qmconf = None
+            while qmconf is None and retry_count < 3:
+                try:
+                    qmconf, energy_stats, rmsd_stats = retry_ground_state_search(
+                        molecule_name, molecule, charge, multiplicity, num_cpus)
+                    stat_dictionary[f"{molecule_type}_Energy"] = energy_stats
+                    stat_dictionary[f"{molecule_type}_RMSD"] = rmsd_stats
+                    
+                    if suffix == '_r':
+                        reactant_qmconf = qmconf
+                    else:
+                        product_qmconf = qmconf
+                except Exception as e:
+                    retry_count += 1
+                    print(f"Retry failed: {retry_count}, Exception: {e}")
 
     # Calculate and store energy difference between product and reactant
-    energy_diff = product_qmconf.results['energy'] - \
-        reactant_qmconf.results['energy']
+    if reactant_qmconf is not None and product_qmconf is not None:
+        energy_diff = product_qmconf.results['energy'] - reactant_qmconf.results['energy']
+    else:
+        energy_diff = None  # Or some other default value
+
     return reactant_qmconf, product_qmconf, energy_diff, stat_dictionary
 
 
-def retry_ground_state_search(charge, multiplicity, num_cpus, name, smi, suffix):
+def retry_ground_state_search(molecule_name, molecule, charge, multiplicity, num_cpus):
     """Retry ground state search if initial attempt fails"""
-    molecule = Chem.AddHs(Chem.MolFromSmiles(smi))
-    AllChem.EmbedMolecule(molecule)
-    rdkit_conf = molecule.GetConformer()
-    molecule_name = name + suffix
-    return find_ground_state_conformers(molecule_name, rdkit_conf, charge, multiplicity, num_cpus)
+    try:
+        molecule_smiles = Chem.MolToSmiles(molecule)
+        molecule_mol = Chem.MolFromSmiles(molecule_smiles)
+        new_mol = Chem.AddHs(molecule_mol)
+        
+        # Sanitize the molecule after adding hydrogens
+        Chem.SanitizeMol(new_mol)
+        
+        # Generate 3D coordinates
+        AllChem.EmbedMolecule(new_mol)
+        
+        # Get the conformer
+        rdkit_conf = new_mol.GetConformer()
+        
+        # Find ground state conformers
+        return find_ground_state_conformers(molecule_name, rdkit_conf, charge, multiplicity, num_cpus)
+    except:
+        print(f"An error occurred while processing {molecule_name}.")
+        return None
 
 def main(batch_id, num_cpus):
     # Load the data
     filters = {'BatchID': batch_id, 'CalculationStage': 'storage'}
     data = retrieve_data(filters)
     print(data)
+    start_time = time.time()
     # Find energy difference and product for each molecule in the dataset
     results = []
     for index, compound in data.iterrows():
-        print(f"Index: {index+1}/{len(data)}, Compound: {compound.HashedName}")
-        
-        # Get reactant conformer, product conformer, and energy difference
-        reactant_qmconf, product_qmconf, energy_diff, stat_dictionary = perform_ground_state_search(
-            str(compound.HashedName),
-            compound.Smiles,
-            compound.Charge,
-            compound.Multiplicity,
-            num_cpus
-        )
-        results.append({
-            'HashedName': str(compound.HashedName),
-            'ReactantObject': reactant_qmconf,
-            'ProductObject': product_qmconf,
-            'StorageEnergy': energy_diff,
-            'CalculationStage': 'storage_completed',
-            'GroundStateStats': stat_dictionary
-        })
-    
+      print(f"Index: {index+1}/{len(data)}, Compound: {compound.HashedName}")
+      
+      # Get reactant conformer, product conformer, and energy difference
+      reactant_qmconf, product_qmconf, energy_diff, stat_dictionary = perform_ground_state_search(
+          str(compound.HashedName),
+          compound.Smiles,
+          compound.Charge,
+          compound.Multiplicity,
+          num_cpus
+      )
+      
+      if reactant_qmconf is None or product_qmconf is None:
+          results.append({
+              'HashedName': str(compound.HashedName),
+              'CalculationStage': 'storage'
+          })
+      else:
+          results.append({
+              'HashedName': str(compound.HashedName),
+              'ReactantObject': reactant_qmconf,
+              'ProductObject': product_qmconf,
+              'StorageEnergy': energy_diff,
+              'CalculationStage': 'storage_completed',
+              'GroundStateStats': stat_dictionary
+          })
+          
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    formatted_elapsed_time = format_time(elapsed_time)
     # Gather results
     results_df = pd.DataFrame(results)
-    print("Finished Batch:")
+    print(f"{batch_id} Finished:")
     print(results_df)
+    print(f'Time: {formatted_elapsed_time}')
     
     # Update the database with the results
     update_data(results_df)

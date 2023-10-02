@@ -91,14 +91,22 @@ def insert_data(data):
     
     conn.commit()
     close_db(conn)
-
+    
+def set_calculation_stage(wanted_stage):
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute(f"UPDATE MoleculeData SET CalculationStage = '{wanted_stage}'")
+    conn.commit()
+    close_db(conn)
+    
 def retrieve_data(filters):
     """Retrieve data from the database based on the filters."""
     conn = connect_db()
     cursor = conn.cursor()
     
+    # Modify the query construction logic to use LIKE for 'CalculationStage'
     query = "SELECT * FROM MoleculeData WHERE "
-    query += " AND ".join([f"{key} = ?" for key in filters.keys()])
+    query += " AND ".join([f"{key} LIKE ?" if key == 'CalculationStage' else f"{key} = ?" for key in filters.keys()])
     
     print("Query:", query)
     print("Parameters:", tuple(filters.values()))
@@ -106,8 +114,11 @@ def retrieve_data(filters):
     print("Current Working Directory:", os.getcwd())
     print(conn)
     
+    # Adjust the parameters to use % for 'CalculationStage'
+    params = [f"%{value}%" if key == 'CalculationStage' else value for key, value in filters.items()]
+    
     try:
-        cursor.execute(query, tuple(filters.values()))
+        cursor.execute(query, tuple(params))
     except Exception as e:
         print(f"An error occurred: {e}")
         close_db(conn)
@@ -128,7 +139,8 @@ def retrieve_data(filters):
     
     close_db(conn)
     
-    return data_df
+    return data_df    
+
 
 def update_data(data_df):
     """Update data in the database with a DataFrame based on batch ID"""
@@ -144,9 +156,12 @@ def update_data(data_df):
                 # Write DataFrame to SQLite
                 data_df.to_sql('NewTable', conn, if_exists='replace', index=False)
 
-                # Construct the SQL update query dynamically
-                set_statements = ", ".join(f"{col} = (SELECT {col} FROM NewTable WHERE NewTable.HashedName = MoleculeData.HashedName)" 
-                                           for col in data_df.columns if col not in ['HashedName'])
+                # Construct the SQL update query dynamically with conditional logic for 'CalculationStage'
+                set_statements = ", ".join(
+                    f"{col} = CASE WHEN '{col}' = 'CalculationStage' THEN (CASE WHEN CalculationStage = 'storage' THEN (SELECT {col} FROM NewTable WHERE NewTable.HashedName = MoleculeData.HashedName) WHEN instr(CalculationStage, (SELECT {col} FROM NewTable WHERE NewTable.HashedName = MoleculeData.HashedName)) > 0 THEN CalculationStage ELSE CalculationStage || ', ' || (SELECT {col} FROM NewTable WHERE NewTable.HashedName = MoleculeData.HashedName) END) ELSE (SELECT {col} FROM NewTable WHERE NewTable.HashedName = MoleculeData.HashedName) END"
+                    for col in data_df.columns if col not in ['HashedName']
+                )
+
                 query = f'''
                 UPDATE MoleculeData
                 SET 
@@ -168,5 +183,7 @@ def update_data(data_df):
 
     # Close the connection
     conn.close()
+
+
 
 

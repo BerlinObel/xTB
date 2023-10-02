@@ -8,7 +8,7 @@ from tqdm import tqdm
 # Add the directory of the script to the Python path
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
-from db_utils import create_table, insert_data
+from db_utils import create_table, insert_data, set_calculation_stage
 from settings import QMC_PATH
 sys.path.append(QMC_PATH)
 
@@ -48,6 +48,10 @@ if __name__ == "__main__":
             print("Data file must be provided for storage job type")
             sys.exit(1)
         create_batches(input_file)
+        
+    elif job_type == "change":
+        wanted_stage = input("CalculationStage: ")
+        set_calculation_stage(wanted_stage)
     else:
         print(f"Unknown job type: {job_type}")
 

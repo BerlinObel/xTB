@@ -11,6 +11,18 @@ import pandas as pd
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from settings import WAVELENGTH_RANGE, FACTOR, SIGMA_CM
 
+from datetime import timedelta
+
+def format_time(seconds):
+
+    delta = timedelta(seconds=seconds)
+    days = delta.days
+    hours, remainder = divmod(delta.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    time_str = f"{days} days, {hours} hours, {minutes} minutes, {seconds} seconds"
+
+    return time_str
+
 def get_statistics(value_list):
     values = np.array(value_list)
 
@@ -83,22 +95,27 @@ def execute_shell_command(cmd, shell=False, timeout=None):
         p.wait(timeout=timeout)
         output, _ = p.communicate()
     except subprocess.TimeoutExpired:
-        print(f"The command '{cmd}' timed out")
+        # print(f"The command '{cmd}' timed out")
         p.kill()
         output = None
     except Exception as e:
         print(f"An error occurred while executing the command '{cmd}': {e}")
-        output = None
+        output = 999
 
     return output
 
 def get_total_energy_xtb(output):
-        # The pattern to find the energy
-        energy_pattern = r"\|\s*TOTAL ENERGY\s+(-?\d+\.\d+)\s+Eh\s*\|"
-        energy_match = re.search(energy_pattern, output.decode('utf-8'))
 
-        # Save the energy under results in the QMConf object
-        energy = float(energy_match.group(1)) if energy_match else None
+        if output == None:
+            # print("Output is None")
+            energy = None
+        else:
+            # The pattern to find the energy
+            energy_pattern = r"\|\s*TOTAL ENERGY\s+(-?\d+\.\d+)\s+Eh\s*\|"
+            energy_match = re.search(energy_pattern, output.decode('utf-8'))
+
+            # Save the energy under results in the QMConf object
+            energy = float(energy_match.group(1)) if energy_match else None
         return energy
 
 def write_xyz(compound, name):

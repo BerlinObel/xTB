@@ -2,10 +2,11 @@ import pandas as pd
 import sys
 import os
 import re
+import time
 
 # Add the directory of the script to the Python path
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
-from utils import execute_shell_command, get_statistics
+from utils import execute_shell_command, get_statistics, format_time
 from settings import XTB4STDA_PATH, STDA_PATH, QMC_PATH
 from db_utils import retrieve_data, update_data
 sys.path.append(QMC_PATH)
@@ -98,7 +99,7 @@ def main(batch_id):
     filters = {'BatchID': batch_id, 'CalculationStage': 'storage_completed'}
     data = retrieve_data(filters)
     print(data)
-    
+    start_time = time.time()
     # Step 2: Perform the calculations and store the new data
     results = []
     for index, compound in data.iterrows():
@@ -121,14 +122,19 @@ def main(batch_id):
             'MaxOscillatorStrengthProduct': osc_str_product,
             'MaxAbsorptionReactant': max_abs_reactant,
             'MaxOscillatorStrengthReactant': osc_str_reactant,
-            'CalculationStage': 'storage_completed',
+            'CalculationStage': 'abs_completed',
             'ExcitationStats': stat_dictionary
         })
 
-        # Step 3: Create a new DataFrame with the results
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        formatted_elapsed_time = format_time(elapsed_time)
+        # Gather results
         results_df = pd.DataFrame(results)
-        print("Finished Batch:")
+        print(f"{batch_id} Finished:")
         print(results_df)
+        print(f'Time: {formatted_elapsed_time}')
+
 
         # Update the database with the results
         update_data(results_df)
