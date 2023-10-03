@@ -108,9 +108,6 @@ def find_transistion_state(reactant, product, ts_name):
     """Find transistion state by using reaction path method from Grimme lab"""
     path_file = 'path.inp'
 
-    # Get RDkit mol from the prod and react
-    
-
     # Creating the xyz files needed fot the xtb calculations
     reactant_xyz_file = f"{reactant.label}.xyz"
     reactant.write_xyz(to_file=True)
