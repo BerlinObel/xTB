@@ -197,7 +197,7 @@ def find_and_validate_lowest_energy_conformer(initial_smiles, optimized_confs):
     
     return lowest_energy_conformer
 
-def find_ground_state_conformers(name, rdkit_conf, charge, multiplicity, num_cpus):
+def find_ground_state_conformers(name, rdkit_conf, charge, multiplicity, num_cpus, smi):
     all_conformers = create_conformers(name, rdkit_conf, charge, multiplicity, num_cpus)
     optimized_confs = []  # List to gather all optimized conformers
     
@@ -231,7 +231,7 @@ def find_ground_state_conformers(name, rdkit_conf, charge, multiplicity, num_cpu
                 except Exception as exc:
                     print(f"Optimizing {conformer.label} raised an exception: {exc}")
 
-    initial_smiles = Chem.MolToSmiles(Chem.RemoveHs(all_conformers[0].get_rdkit_mol()))
+    initial_smiles = smi
     
     lowest_energy_conformer = find_and_validate_lowest_energy_conformer(initial_smiles, optimized_confs)
 
@@ -255,14 +255,12 @@ def find_ground_state_conformers(name, rdkit_conf, charge, multiplicity, num_cpu
 
 def perform_ground_state_search(name, smi, charge, multiplicity, num_cpus):
     """Perform ground state search given a SMILES string"""
-    print(f"Create product for {name}:")
     reactant_smi, product_smi = generate_product_from_reactant(smi)
 
     reactant_mol = Chem.AddHs(Chem.MolFromSmiles(reactant_smi))
 
     # Attempt to reorder product to match reactant
     try:
-        print("Attempting to reorder product to match reactant")
         product_mol = reorder_product_to_match_reactant(
             reactant_mol, Chem.AddHs(Chem.MolFromSmiles(product_smi)))
     except:
@@ -282,6 +280,7 @@ def perform_ground_state_search(name, smi, charge, multiplicity, num_cpus):
         AllChem.EmbedMolecule(molecule)
         rdkit_conf = molecule.GetConformer()
         molecule_name = name + suffix
+        initial_smiles = Chem.MolToSmiles(Chem.RemoveHs(molecule))
         
         if suffix == '_r':
             molecule_type = "Reactant"
@@ -289,8 +288,9 @@ def perform_ground_state_search(name, smi, charge, multiplicity, num_cpus):
             molecule_type = "Product"
         
         try:
+            print(f"Trying {molecule_type} conformer search")
             qmconf, energy_stats, rmsd_stats = find_ground_state_conformers(
-                molecule_name, rdkit_conf, charge, multiplicity, num_cpus)
+                molecule_name, rdkit_conf, charge, multiplicity, num_cpus, initial_smiles)
             stat_dictionary[f"{molecule_type}_Energy"] = energy_stats
             stat_dictionary[f"{molecule_type}_RMSD"] = rmsd_stats
             
@@ -307,8 +307,9 @@ def perform_ground_state_search(name, smi, charge, multiplicity, num_cpus):
             qmconf = None
             while qmconf is None and retry_count < 3:
                 try:
+                    initial_smiles = Chem.MolToSmiles(Chem.RemoveHs(molecule))    
                     qmconf, energy_stats, rmsd_stats = retry_ground_state_search(
-                        molecule_name, molecule, charge, multiplicity, num_cpus)
+                        molecule_name, charge, multiplicity, num_cpus, initial_smiles)
                     stat_dictionary[f"{molecule_type}_Energy"] = energy_stats
                     stat_dictionary[f"{molecule_type}_RMSD"] = rmsd_stats
                     
@@ -329,11 +330,10 @@ def perform_ground_state_search(name, smi, charge, multiplicity, num_cpus):
     return reactant_qmconf, product_qmconf, energy_diff, stat_dictionary
 
 
-def retry_ground_state_search(molecule_name, molecule, charge, multiplicity, num_cpus):
+def retry_ground_state_search(molecule_name, charge, multiplicity, num_cpus, smi):
     """Retry ground state search if initial attempt fails"""
     try:
-        molecule_smiles = Chem.MolToSmiles(molecule)
-        molecule_mol = Chem.MolFromSmiles(molecule_smiles)
+        molecule_mol = Chem.MolFromSmiles(smi)
         new_mol = Chem.AddHs(molecule_mol)
         
         # Sanitize the molecule after adding hydrogens
@@ -344,9 +344,10 @@ def retry_ground_state_search(molecule_name, molecule, charge, multiplicity, num
         
         # Get the conformer
         rdkit_conf = new_mol.GetConformer()
+
         
         # Find ground state conformers
-        return find_ground_state_conformers(molecule_name, rdkit_conf, charge, multiplicity, num_cpus)
+        return find_ground_state_conformers(molecule_name, rdkit_conf, charge, multiplicity, num_cpus, smi)
     except:
         print(f"An error occurred while processing {molecule_name}.")
         return None
