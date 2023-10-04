@@ -236,22 +236,26 @@ def find_ground_state_conformers(name, rdkit_conf, charge, multiplicity, num_cpu
     
     lowest_energy_conformer = find_and_validate_lowest_energy_conformer(initial_smiles, optimized_confs)
 
-    energies = [conf.results['energy'] for conf in optimized_confs]
-    energy_stats = get_statistics(energies)
-    print("Energy stats")
-    print(energy_stats)
+    if lowest_energy_conformer != None:
+        print("Ground state search complete!")
+        energies = [conf.results['energy'] for conf in optimized_confs]
+        energy_stats = get_statistics(energies)
+        print("Energy stats")
+        print(energy_stats)
 
+
+        ref_mol = lowest_energy_conformer.get_rdkit_mol()
+        rmsd_values = get_rmsd_values(ref_mol, optimized_confs)
+        rmsd_stats = get_statistics(rmsd_values)
+        print("RMSD stats")
+        print(rmsd_stats)
+
+        print(f"Lowest energy conf: {lowest_energy_conformer.label}")
+        print(f"Energy: {lowest_energy_conformer.results['energy']}")
     
-    ref_mol = lowest_energy_conformer.get_rdkit_mol()
-    rmsd_values = get_rmsd_values(ref_mol, optimized_confs)
-    rmsd_stats = get_statistics(rmsd_values)
-    print("RMSD stats")
-    print(rmsd_stats)
-    
-    print(f"Lowest energy conf: {lowest_energy_conformer.label}")
-    print(f"Energy: {lowest_energy_conformer.results['energy']}")
-    
-    return lowest_energy_conformer, energy_stats, rmsd_stats
+        return lowest_energy_conformer, energy_stats, rmsd_stats
+    else:
+        return None
 
 
 def perform_ground_state_search(name, smi, charge, multiplicity, num_cpus):
@@ -303,11 +307,11 @@ def perform_ground_state_search(name, smi, charge, multiplicity, num_cpus):
                 
         except Exception as e:
             print(f"Unable to find ground state conformer raised exception: {e}")
-            print(f"Retrying {molecule_type} conformer search")
             retry_count = 0
             qmconf = None
             while qmconf is None and retry_count < 3:
                 try:
+                    print(f"Retrying {molecule_type} conformer search")
                     initial_smiles = Chem.MolToSmiles(Chem.RemoveHs(molecule))    
                     qmconf, energy_stats, rmsd_stats = retry_ground_state_search(
                         molecule_name, charge, multiplicity, num_cpus, initial_smiles)
@@ -350,7 +354,7 @@ def retry_ground_state_search(molecule_name, charge, multiplicity, num_cpus, smi
         # Find ground state conformers
         return find_ground_state_conformers(molecule_name, rdkit_conf, charge, multiplicity, num_cpus, smi)
     except:
-        print(f"An error occurred while processing {molecule_name}.")
+        print(f"An error occurred while processing {molecule_name} for retry.")
         return None
 
 def main(batch_id, num_cpus):
