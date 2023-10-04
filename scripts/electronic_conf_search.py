@@ -178,6 +178,7 @@ def find_and_validate_lowest_energy_conformer(initial_smiles, optimized_confs):
 
     lowest_energy_conformer = min(valid_conformers, key=lambda x: x.results['energy'])
     conf_smiles = Chem.MolToSmiles(Chem.RemoveHs(lowest_energy_conformer.get_rdkit_mol()))
+    initial_smiles = Chem.MolToSmiles(Chem.RemoveHs(Chem.MolFromSmiles(initial_smiles)))
     
     index = 1
     while initial_smiles != conf_smiles:
