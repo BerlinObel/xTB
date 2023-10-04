@@ -1,0 +1,7 @@
+# reduce github files
+*.csv
+*.pkl
+*.stderr
+*.stdout
+*.tmp
+*.db
