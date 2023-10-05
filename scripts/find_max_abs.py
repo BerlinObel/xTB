@@ -4,6 +4,8 @@ import os
 import re
 import time
 
+
+import calc_sce
 # Add the directory of the script to the Python path
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from utils import execute_shell_command, get_statistics, format_time
@@ -114,7 +116,10 @@ def main(batch_id):
         stat_dictionary["Reactant_Osc"] = get_statistics(osc_str_reactant_lst)
         stat_dictionary["Product_Max_Abs"] = get_statistics(max_abs_product_lst)
         stat_dictionary["Product_Osc"] = get_statistics(osc_str_product_lst)  
-            
+    
+        #Calculate Solar conversion efficiency
+        solarCE = calc_sce.SCE(compound.StorageEnergy,compound.BackReactionBarrier,max_abs_reactant,osc_str_reactant)
+
         results.append({
             'HashedName': str(compound.HashedName),
             'BatchID': str(compound.BatchID),
@@ -123,6 +128,7 @@ def main(batch_id):
             'MaxAbsorptionReactant': max_abs_reactant,
             'MaxOscillatorStrengthReactant': osc_str_reactant,
             'CalculationStage': 'abs_completed',
+            'SolarConversionEfficiency': solarCE,
             'ExcitationStats': stat_dictionary
         })
 
@@ -134,7 +140,7 @@ def main(batch_id):
         print(f"{batch_id} Finished:")
         print(results_df)
         print(f'Time: {formatted_elapsed_time}')
-
+ 
 
         # Update the database with the results
         update_data(results_df)

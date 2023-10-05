@@ -63,6 +63,7 @@ def create_table():
             MaxOscillatorStrengthProduct REAL,
             MaxAbsorptionReactant REAL,
             MaxOscillatorStrengthReactant REAL,
+            SolarConversionEfficiency REAL,
             GroundStateStats BLOB,
             TransistionStateStats BLOB,
             ExcitationStats BLOB

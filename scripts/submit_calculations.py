@@ -79,7 +79,8 @@ if __name__ == "__main__":
     stage_mapping = {
         'storage': 'storage',
         'tbr': 'storage_completed',
-        'abs': 'storage_completed',
+        #'abs': 'storage_completed',
+        'abs': 'storage_completed, ts_completed',
         # ... (add other job types as needed)
     }
     # Query the database to get a list of distinct batch IDs that are at the appropriate stage for this job type

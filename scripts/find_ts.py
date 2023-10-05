@@ -17,8 +17,8 @@ from settings import QMC_PATH, REACTION_PATH_TEMPLATE
 sys.path.append(QMC_PATH)
 
 from utils import execute_shell_command, get_total_energy_xtb, format_time
-from QMC.qmmol import QMMol
-from QMC.qmconf import QMConf
+from qmmol import QMMol
+from qmconf import QMConf
 
 def get_tbr_reaction_path_search(output):
     # The pattern for finding the back reaction barrier

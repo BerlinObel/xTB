@@ -3,12 +3,12 @@ import os
 from typing import Dict, Optional
 
 # Path to database
-DB_PATH = "/groups/kemi/brq616/speciale/molecule_data.db"
+DB_PATH = "/groups/kemi/obel/github/xTB/molecule_data.db"
 # Base path - replace with the path to the root directory of your project
-BASE_PATH = "/groups/kemi/brq616/speciale/opt/xTB"
+BASE_PATH = "/groups/kemi/obel/github/xTB/"
 
-USER = "brq616"
-QUEUE = "chem"
+USER = "obel"
+QUEUE = "kemi6"
 QMC_PATH = os.path.join(BASE_PATH, "tQMC/QMC")
 
 ## Path to xtb programs
