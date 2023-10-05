@@ -63,6 +63,7 @@ SQLite database columns include:
 - **MaxOscillatorStrengthProduct**: The maximum oscillator strength for transitions in the product molecule.
 - **MaxAbsorptionReactant**: The absorption wavelength corresponding to the maximum oscillator strength for the reactant molecule.
 - **MaxOscillatorStrengthReactant**: The maximum oscillator strength for transitions in the reactant molecule.
+- **SolarConversionEfficiency**: The solar conversion efficiency calculated from absorptions, storage energy and backreaction barrier.
 - **GroundStateStats**: A serialized dictionary containing statistical data (mean, median, standard deviation, variance, and range) of various energy calculations and RMSD values for ground state configurations.
 - **TransitionStateStats**: A BLOB object to store statistical data for the transition state configurations (details on obtaining good statistics for this are under consideration).
 - **ExcitationStats**: A serialized dictionary containing statistical data on several sTDA calculations, including mean, median, standard deviation, variance, and range of maximum absorptions and oscillator strengths.
