@@ -98,14 +98,16 @@ def calculate_absorbtion(compound):
 
 def main(batch_id):
     # Step 1: Load the data from the database
-    filters = {'BatchID': batch_id, 'CalculationStage': 'storage_completed'}
+    filters = {'BatchID': batch_id, 'CalculationStage': 'ts_completed'}
     data = retrieve_data(filters)
     print(data)
     start_time = time.time()
     # Step 2: Perform the calculations and store the new data
     results = []
     for index, compound in data.iterrows():
-        print(f"Index: {index+1}/{len(data)}, Compound: {compound.HashedName}")
+        print(f"""
+Index: {index+1}/{len(data)}, Compound: {compound.HashedName}
+""")
         stat_dictionary = {}
         max_abs_reactant, osc_str_reactant = calculate_absorbtion(
             compound.ReactantObject)
@@ -132,18 +134,25 @@ def main(batch_id):
             'ExcitationStats': stat_dictionary
         })
 
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        formatted_elapsed_time = format_time(elapsed_time)
-        # Gather results
-        results_df = pd.DataFrame(results)
-        print(f"{batch_id} Finished:")
-        print(results_df)
-        print(f'Time: {formatted_elapsed_time}')
- 
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    formatted_elapsed_time = format_time(elapsed_time)
+    # Gather results
+    results_df = pd.DataFrame(results)
+    print(f"""
+───▄▀▀▀▄▄▄▄▄▄▄▀▀▀▄───
+───█▒▒░░░░░░░░░▒▒█───
+────█░░█░░░░░█░░█────
+─▄▄──█░░░▀█▀░░░█──▄▄─
+█░░█─▀▄░░░░░░░▄▀─█░░█
+{batch_id} finished:
+{results_df}
 
-        # Update the database with the results
-        update_data(results_df)
+Time: {formatted_elapsed_time}
+          """)
+
+    # Update the database with the results
+    update_data(results_df)
 
 
 if __name__ == '__main__':

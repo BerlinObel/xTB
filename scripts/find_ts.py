@@ -17,8 +17,11 @@ from settings import QMC_PATH, REACTION_PATH_TEMPLATE
 sys.path.append(QMC_PATH)
 
 from utils import execute_shell_command, get_total_energy_xtb, format_time
-from qmmol import QMMol
-from qmconf import QMConf
+
+# from qmmol import QMMol
+# from qmconf import QMConf
+from QMC.qmmol import QMMol
+from QMC.qmconf import QMConf
 
 def get_tbr_reaction_path_search(output):
     # The pattern for finding the back reaction barrier
@@ -153,7 +156,9 @@ def main(batch_id, reaction_path_settings):
     # Step 2: Perform the calculations and store the new data
     results = []
     for index, compound in data.iterrows():
-        print(f"Index: {index+1}/{len(data)}, Compound: {compound.HashedName}")
+        print(f"""
+Index: {index+1}/{len(data)}, Compound: {compound.HashedName}
+""")
         compound_name = str(compound.HashedName)  
         reactant = compound.ReactantObject 
         product = compound.ProductObject
@@ -189,9 +194,16 @@ def main(batch_id, reaction_path_settings):
     formatted_elapsed_time = format_time(elapsed_time)
     # Gather results
     results_df = pd.DataFrame(results)
-    print(f"{batch_id} Finished:")
-    print(results_df)
-    print(f'Time: {formatted_elapsed_time}')
+    print(f"""
+──────▄▀▄─────▄▀▄
+─────▄█░░▀▀▀▀▀░░█▄
+─▄▄──█░░░░░░░░░░░█──▄▄
+█▄▄█─█░░▀░░┬░░▀░░█─█▄▄█
+{batch_id} finished:
+{results_df}
+
+Time: {formatted_elapsed_time}
+          """)
     
     # Update the database with the results
     update_data(results_df)

@@ -12,8 +12,10 @@ from db_utils import create_table, insert_data, set_calculation_stage
 from settings import QMC_PATH
 sys.path.append(QMC_PATH)
 
-from qmmol import QMMol
-from qmconf import QMConf
+# from qmmol import QMMol
+# from qmconf import QMConf
+from QMC.qmmol import QMMol
+from QMC.qmconf import QMConf
 
 def create_batches(input_file):
     chunk_size = int(input("Batch size: "))

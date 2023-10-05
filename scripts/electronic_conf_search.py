@@ -17,10 +17,14 @@ from db_utils import update_data, retrieve_data
 from settings import QMC_PATH
 sys.path.append(QMC_PATH)
 
-from conformers.create_conformers import RotatableBonds
-from calculator.xtb import xTB
-from qmconf import QMConf
-from qmmol import QMMol
+# from conformers.create_conformers import RotatableBonds
+# from calculator.xtb import xTB
+from QMC.conformers.create_conformers import RotatableBonds
+from QMC.calculator.xtb import xTB
+# from qmmol import QMMol
+# from qmconf import QMConf
+from QMC.qmmol import QMMol
+from QMC.qmconf import QMConf
 from utils import execute_shell_command, get_total_energy_xtb, get_statistics, format_time
 
 def find_atom_mapping_reactant_to_product(reactant, product):
