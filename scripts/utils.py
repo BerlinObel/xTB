@@ -6,12 +6,66 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import gaussian
 import pandas as pd
+from rdkit import Chem
+import copy
 
 # Add the directory of the script to the Python path
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from settings import WAVELENGTH_RANGE, FACTOR, SIGMA_CM
 
 from datetime import timedelta
+
+def find_atom_mapping_reactant_to_product(reactant, product):
+    """Find and return new atom order in product based on reactant"""
+    # Copy molecules to prevent mutation of original molecules
+    reactant_copy = copy.deepcopy(reactant)
+    product_copy = copy.deepcopy(product)
+
+    # Kekulize molecules to make aromaticity explicit
+    Chem.Kekulize(reactant_copy, clearAromaticFlags=True)
+    Chem.Kekulize(product_copy, clearAromaticFlags=True)
+
+    # Normalize molecules to only compare connectivity
+    reactant_norm = normalize_molecule(reactant_copy)
+    product_norm = normalize_molecule(product_copy)
+
+    # Attempt to match structure of product to reactant by breaking a bond
+    smarts_bond = Chem.MolFromSmarts('[CX4;H0;R]-[CX4;H1;R]')
+    atom_indices = list(reactant_norm.GetSubstructMatch(smarts_bond))
+
+    if len(atom_indices) != 0:
+        bond = reactant_norm.GetBondBetweenAtoms(
+            atom_indices[0], atom_indices[1])
+        broken_bond_reactant = Chem.FragmentOnBonds(
+            reactant_norm, [bond.GetIdx()], addDummies=False)
+
+        # find new atom order for product
+        product_order = product_norm.GetSubstructMatch(broken_bond_reactant)
+    else:
+        product_order = product_norm.GetSubstructMatch(reactant_norm)
+
+    return product_order
+
+
+def normalize_molecule(mol):
+    """Normalize molecule to compare only connectivity"""
+    # Change all bond types to single
+    for bond in mol.GetBonds():
+        if bond.GetBondType() != Chem.BondType.SINGLE:
+            bond.SetBondType(Chem.BondType.SINGLE)
+    # Remove formal charges
+    for atom in mol.GetAtoms():
+        if atom.GetFormalCharge() != 0:
+            atom.SetFormalCharge(0)
+    return mol
+
+
+def reorder_product_to_match_reactant(reactant, product):
+    """Change atom order of product to match reactant"""
+    new_product_order = find_atom_mapping_reactant_to_product(
+        reactant, product)
+    reordered_product = Chem.RenumberAtoms(product, new_product_order)
+    return reordered_product
 
 def format_time(seconds):
 
@@ -48,39 +102,7 @@ def gaussian_distribution(wavelength_range, center_wavelength, oscillator_streng
     distribution = oscillator_strength * np.exp(-4 * np.log(2) * ((1 / wavelength_range - 1 / center_wavelength) / (1e-7 * sigma_cm))**2)
     return distribution
 
-def calculate_absorption_and_max_os_strength(wavelengths, oscillator_strengths):
-    """
-    This function calculates the overall absorption spectrum by summing the contributions from 
-    Gaussians centered at each transition wavelength.
-    """
-    absorption_spectrum = np.zeros_like(WAVELENGTH_RANGE)
-    max_os_strength = np.zeros_like(WAVELENGTH_RANGE)
-    
-    for i, wavelength in enumerate(wavelengths):
-        contribution = gaussian_distribution(WAVELENGTH_RANGE, wavelength, oscillator_strengths[i], SIGMA_CM)
-        absorption_spectrum += contribution
-        max_os_strength[np.argmax(contribution)] = oscillator_strengths[i]
 
-    absorption_spectrum *= FACTOR / SIGMA_CM
-
-    # plt.plot(WAVELENGTH_RANGE, absorption_spectrum)
-
-    return absorption_spectrum, max_os_strength
-
-def get_max_absorption(wavelengths, oscillator_strengths):
-    """
-    This function finds the maximum absorption wavelength, its value, and the corresponding oscillator strength. 
-    It specifically searches within the range of 185th to 500th wavelength assuming that the range covers the visible light spectrum.
-    """
-    absorption_spectrum, max_os_strength = calculate_absorption_and_max_os_strength(wavelengths, oscillator_strengths)
-    max_index = np.argmax(absorption_spectrum[185:500]) + 185
-    max_wavelength = WAVELENGTH_RANGE[max_index]
-    max_absorption = absorption_spectrum[max_index]
-    corresponding_max_os_strength = max_os_strength[max_index]
-
-    return max_wavelength, max_absorption, corresponding_max_os_strength
-
-# Execute programs in the shell
 def execute_shell_command(cmd, shell=False, timeout=None):
     """
     Executes a shell command and waits for it to finish execution.
@@ -90,10 +112,13 @@ def execute_shell_command(cmd, shell=False, timeout=None):
     else:
         cmd = cmd.split()
         p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    
+        
     try:
-        p.wait(timeout=timeout)
-        output, _ = p.communicate()
+        output, error = p.communicate(timeout=timeout)
+        # if error:
+            # print(f"Standard Error: {error.decode('utf-8')}")
+        # if output:
+            # print(f"{output.decode('utf-8')}")
     except subprocess.TimeoutExpired:
         # print(f"The command '{cmd}' timed out")
         p.kill()
@@ -104,6 +129,29 @@ def execute_shell_command(cmd, shell=False, timeout=None):
 
     return output
 
+def run_orca(input_file, timeout=None):
+    ORCA="/software/kemi/Orca/orca_5_0_1_linux_x86-64_openmpi411/orca"
+
+    cmd = [ORCA, input_file]
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    output, error = p.communicate(timeout=timeout)
+    if error:
+        print(f"Standard Error: {error.decode('utf-8')}")
+    if p.returncode != 0:
+        print(f"ORCA exited with status {p.returncode}")
+    # if output:
+        # print(f"{output.decode('utf-8')}")
+    return output, error
+
+def orca_terminated_normally(output):
+    normal_termination_pattern = r"\s*\*\*\*\*ORCA TERMINATED NORMALLY\*\*\*\*\s*"
+    energy_match = re.search(normal_termination_pattern, output.decode('utf-8'))
+    if energy_match:
+        return True
+    else:
+        return False
+    
 def get_total_energy_xtb(output):
 
         if output == None:
@@ -115,8 +163,24 @@ def get_total_energy_xtb(output):
             energy_match = re.search(energy_pattern, output.decode('utf-8'))
 
             # Save the energy under results in the QMConf object
-            energy = float(energy_match.group(1)) if energy_match else None
+            energy = float(energy_match.group(1)) if energy_match else 0
         return energy
+    
+def get_final_energy_orca(output, type="out_file"):
+    if output is None:
+        return None
+    
+    # Decode the output if it's in bytes
+    decoded_output = output.decode('utf-8') if isinstance(output, bytes) else output
+    if type == "prop_file":
+        orca_energy_pattern = r"\s*SCF Energy:\s+(-?\d+\.\d+)\s*"
+    else:
+        orca_energy_pattern = r"FINAL SINGLE POINT ENERGY\s+(-?\d+\.\d+)\s*"
+    energy_matches = re.findall(orca_energy_pattern, decoded_output)
+    
+    # Get the last match
+    return float(energy_matches[-1]) if energy_matches else None
+    
 
 def write_xyz(compound, name):
     filename = f"{name}_{compound.label}.xyz"
