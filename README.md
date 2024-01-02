@@ -20,9 +20,10 @@ We deeply appreciate their foundational work.
   
 - **Languages & Tools**: The scripts are in Python, using SQLite for the database. Calculations run in parallel using SLURM.
 
-- **Order of Operations**: Once the database is set up and filled, you can calculate storage energies and ground states for reactants and products. Then the transistion states can be found and then the exciation energies and the solar conversion efficiency.
+- **Order of Operations**: After setting up and populating the database, start by calculating storage energies and ground states for both reactants and products. Next, identify transition states, followed by determining excitation energies and solar conversion efficiency.
 
-- **Submitting to ORCA**: There are scripts that can submit to ORCA to use for comparing results. All scripta ending in dft is what is used here.
+- **Submitting to ORCA**: There are specific scripts designed for submitting computations to ORCA, primarily for result comparison. Scripts that end in '_dft' are utilized for this purpose.
+
 
 ## File Descriptions
 
