@@ -15,64 +15,92 @@ except:
     pd.to_pickle(am15_sheet,'am15_SMARTS2.pkl')
 
 
-# Read solar spectrum - choosen spectra normalized to 1000 (1000 W/m2)
-solspec = am15_sheet.to_numpy()
-wavelength = solspec[2:,0]
-Esun = solspec[2:,2]
+# Read solar spectrum - chosen spectrum normalized to 1000 (1000 W/m2)
+solar_spectrum = am15_sheet.to_numpy()
+wavelengths = solar_spectrum[2:, 0]
+solar_irradiance = solar_spectrum[2:, 2]
 
-# Calculate Edot
-def calc_Edot():
-    return Esun[0] * 0.5 + sum(E * (w2 - w1) for E, w1, w2 in zip(Esun[1:], wavelength[:-1], wavelength[1:]))
-
-Edot = calc_Edot() #should be 999.7102563234429
 
 # Natural constants
-hbar = 1.05457182*10**(-34)
-h = 6.6261*10**(-34)
-c = 299792458
-Na = 6.0221408*10**(23)
-evtoJ = 1.602176634*10**(-19)
+hbar = 1.05457182 * 10 ** (-34)
+planck_constant = 6.6261 * 10 ** (-34)
+speed_of_light = 299792458
+avogadro_number = 6.0221408 * 10 ** (23)
+electronvolt_to_joule = 1.602176634 * 10 ** (-19)
 
+def calculate_total_solar_power(irradiance_spectrum, wavelength_spectrum):
+    """
+    Calculate the total solar power based on the solar irradiance spectrum and wavelength spectrum.
+    :param irradiance_spectrum: Array of solar irradiance values (in W/m2).
+    :param wavelength_spectrum: Array of solar wavelengths (in nm).
+    :return: Total solar power (in W).
+    """
+    power_intervals = [
+        irradiance * (next_wavelength - current_wavelength)
+        for irradiance, current_wavelength, next_wavelength 
+        in zip(irradiance_spectrum[1:], wavelength_spectrum[:-1], wavelength_spectrum[1:])
+    ]
+    total_power = irradiance_spectrum[0] * 0.5 + sum(power_intervals)
+    return total_power
 
-def gaussian(x, y, wavelength, gamma):
-    '''
-    Gaussian broadening function
-     
-    Call: xi,yi = gaussian(energies, intensities, start energy, end stop energy, energy step, gamma)
-    '''
- 
-    factor = 1.3062974*10**8.0
-    xi = h*c/(wavelength*10**(-9)*evtoJ)
-    yi=np.zeros_like(wavelength)
-    for i in range(len(xi)):
-        for k in range(len(x)): yi[i] = yi[i] + factor * (y[k]/(8065.73*gamma)) * np.e**(-((xi[i]-x[k])**2)/(gamma**2))
-     
-    return xi,yi
+def apply_gaussian_broadening(excitation_energy, transition_strength, solar_wavelengths, broadening_factor):
+    """
+    Applies Gaussian broadening to the solar spectrum for a specific molecular transition.
+    :param excitation_energy: Energy at which the molecule is excited (in eV).
+    :param transition_strength: Strength of the molecular transition.
+    :param solar_wavelengths: Array of solar wavelengths (in nm).
+    :param broadening_factor: Standard deviation of the Gaussian broadening (in eV).
+    :return: Tuple of energy values (in eV) and broadened transition intensities.
+    """
+    energy_values = planck_constant * speed_of_light / (solar_wavelengths * 1e-9 * electronvolt_to_joule)
+    broadened_intensities = np.zeros_like(solar_wavelengths)
+    normalization_factor = 1.3062974 * 10 ** 8.0
+    for i, energy in enumerate(energy_values):
+        gaussian_term = np.exp(-((energy - excitation_energy) ** 2) / (broadening_factor ** 2))
+        normalization = normalization_factor * (transition_strength / (8065.73 * broadening_factor))
+        broadened_intensities[i] += normalization * gaussian_term
 
-def SCE(storage,barrier,exci,osc,Esun=Esun,wavelength=wavelength):
-    print(f'###----------------###\nStorage Energy: {storage} (Hartree)\n{storage*2625.5} (kJ/mol)\n{(storage*2625.5)*10**(3)/Na}(eV ?)\nTBR Barrier: {barrier}\nAbsorptions wavelength: {exci}\nOscilator strength: {osc}\nSpectra:\n{wavelength}\n{Esun}\n')
+    return energy_values, broadened_intensities
+
+def calculate_SCE(storage_energy_Hartree, reaction_barrier_kJ, excitation_wavelength_nm, transition_strength, irradiance_spectrum=solar_irradiance, wavelength_spectrum=wavelengths):
+    """
+    Calculates the Solar Conversion Efficiency for a molecule based on its energy storage and reaction properties.
+    :param storage_energy_Hartree: Energy stored in the molecule (in Hartree).
+    :param reaction_barrier_kJ: Back reaction energy barrier (in kJ/mol).
+    :param excitation_wavelength_nm: Wavelength of maximum excitation (in nm).
+    :param transition_strength: Strength of the excitation transition.
+    :param irradiance_spectrum: Array of solar irradiance values (in W/m2).
+    :param wavelength_spectrum: Array of solar wavelengths (in nm).
+    :param total_solar_power: Total solar power hitting the Earth's surface (in W).
+    :return: Solar Conversion Efficiency (SCE) as a percentage.
+    """
+    # Convert storage energy from Hartree to kJ/mol
+    storage_energy_kJ = storage_energy_Hartree * 2625.5
     
-    storage = storage*2625.5 #Convert Hartree to kJ/mol
-    Ndot = 0.0
-    sce = 0.0
-    Ecut = (h*c)/(10**(-6)*(storage+barrier)/Na)
+    # Calculate the energy cutoff for the solar spectrum
+    energy_cutoff = (planck_constant * speed_of_light) / (1e-6 * (storage_energy_kJ + reaction_barrier_kJ) / avogadro_number)
 
+    total_solar_power = calculate_total_solar_power(irradiance_spectrum, wavelength_spectrum)
 
-    xi,yi = gaussian(np.array([1239.8/exci]),np.array([osc]),wavelength,0.25)
+    # Apply Gaussian broadening to simulate the absorption profile
+    excitation_energy_eV = 1239.8 / excitation_wavelength_nm  # Convert wavelength to energy
+    energy_values, broadened_intensities = apply_gaussian_broadening(excitation_energy_eV, transition_strength, wavelength_spectrum, 0.25)
+    attenuation_factor = 1.0 - 10 ** (-broadened_intensities)
 
-    attenuation = (1.0 - 10**(-yi))
-
-    # Calculate Ndot times attenuation
-    for i in range(len(wavelength[wavelength<Ecut])):
-        if i==0:
-            Ndot += (Esun[i]/(h*c/(wavelength[i]*10**(-9))))* 0.5 * attenuation[i]
+    # Calculate absorbed photon count
+    absorbed_photon_count = 0.0
+    for i, wavelength in enumerate(wavelength_spectrum):
+        if wavelength >= energy_cutoff:
+            break
+        photon_energy = planck_constant * speed_of_light / (wavelength * 1e-9)
+        if i == 0:
+            delta_wavelength = 0.5
         else:
-            Ndot += (Esun[i]/(h*c/(wavelength[i]*10**(-9))))* (wavelength[i]-wavelength[i-1]) * attenuation[i]
+            delta_wavelength = wavelength - wavelength_spectrum[i - 1]
+        absorbed_photon_count += (irradiance_spectrum[i] / photon_energy) * delta_wavelength * attenuation_factor[i]
 
-    sce = ((storage*10**(3)/Na)) * Ndot/Edot
+    # Calculate solar conversion efficiency
+    sce_percentage = max(0.0, (storage_energy_kJ * 1e3 / avogadro_number) * absorbed_photon_count / total_solar_power) * 100
 
+    return sce_percentage
 
-    if sce < 0.0:
-        sce = 0.0
-
-    return sce*100

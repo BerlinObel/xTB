@@ -25,60 +25,7 @@ from QMC.calculator.xtb import xTB
 # from qmconf import QMConf
 from QMC.qmmol import QMMol
 from QMC.qmconf import QMConf
-from utils import execute_shell_command, get_total_energy_xtb, get_statistics, format_time
-
-def find_atom_mapping_reactant_to_product(reactant, product):
-    """Find and return new atom order in product based on reactant"""
-    # Copy molecules to prevent mutation of original molecules
-    reactant_copy = copy.deepcopy(reactant)
-    product_copy = copy.deepcopy(product)
-
-    # Kekulize molecules to make aromaticity explicit
-    Chem.Kekulize(reactant_copy, clearAromaticFlags=True)
-    Chem.Kekulize(product_copy, clearAromaticFlags=True)
-
-    # Normalize molecules to only compare connectivity
-    reactant_norm = normalize_molecule(reactant_copy)
-    product_norm = normalize_molecule(product_copy)
-
-    # Attempt to match structure of product to reactant by breaking a bond
-    smarts_bond = Chem.MolFromSmarts('[CX4;H0;R]-[CX4;H1;R]')
-    atom_indices = list(reactant_norm.GetSubstructMatch(smarts_bond))
-
-    if len(atom_indices) != 0:
-        bond = reactant_norm.GetBondBetweenAtoms(
-            atom_indices[0], atom_indices[1])
-        broken_bond_reactant = Chem.FragmentOnBonds(
-            reactant_norm, [bond.GetIdx()], addDummies=False)
-
-        # find new atom order for product
-        product_order = product_norm.GetSubstructMatch(broken_bond_reactant)
-    else:
-        product_order = product_norm.GetSubstructMatch(reactant_norm)
-
-    return product_order
-
-
-def normalize_molecule(mol):
-    """Normalize molecule to compare only connectivity"""
-    # Change all bond types to single
-    for bond in mol.GetBonds():
-        if bond.GetBondType() != Chem.BondType.SINGLE:
-            bond.SetBondType(Chem.BondType.SINGLE)
-    # Remove formal charges
-    for atom in mol.GetAtoms():
-        if atom.GetFormalCharge() != 0:
-            atom.SetFormalCharge(0)
-    return mol
-
-
-def reorder_product_to_match_reactant(reactant, product):
-    """Change atom order of product to match reactant"""
-    new_product_order = find_atom_mapping_reactant_to_product(
-        reactant, product)
-    reordered_product = Chem.RenumberAtoms(product, new_product_order)
-    return reordered_product
-
+from utils import execute_shell_command, get_total_energy_xtb, get_statistics, format_time, reorder_product_to_match_reactant
 
 def generate_product_from_reactant(reactant_smi):
     """Generate product from reactant SMILES string"""
@@ -93,7 +40,7 @@ def generate_product_from_reactant(reactant_smi):
         product_smi = reactant_smi_new.replace("/N=N/", "/N=N\\")
         reactant_smi = reactant_smi_new
     else:
-        # If neither /N=N/ nor N=N are present, return None or some default value
+        # If neither /N=N/ nor N=N are present, return None
         product_smi = None
 
     # NBD
@@ -132,13 +79,16 @@ def create_conformers(name, rdkit_conf, charge, multiplicity, num_cpus):
     
     return qmmol.conformers
 
-def optimize_conformer(conformer):
+def optimize_conformer(conformer, multiplicity, charge):
 
     conformer_name = conformer.label
     xyz_file = f"{conformer_name}.xyz"
     xyz_result = "xtbopt.xyz"
     conformer.write_xyz(to_file=True)
-    command_input = f"xtb {xyz_file} --gfn 1 --opt crude"
+    unpaired_electrons = multiplicity - 1
+
+    command_input = f"xtb {xyz_file} --gfn 1 --opt crude --chrg {int(charge)} --uhf {int(unpaired_electrons)}"
+    # print(command_input)
     output = execute_shell_command(command_input, shell=False, timeout=300)
     
     if output is None:
@@ -201,7 +151,7 @@ def find_ground_state_conformers(name, rdkit_conf, charge, multiplicity, num_cpu
 
     # Initial submission
     with ThreadPoolExecutor(max_workers=num_cpus) as executor:
-        future_to_conformer = {executor.submit(optimize_conformer, conformer): conformer for conformer in all_conformers}
+        future_to_conformer = {executor.submit(optimize_conformer, conformer, multiplicity, charge): conformer for conformer in all_conformers}
     
         while future_to_conformer:
             for future in as_completed(future_to_conformer):
@@ -221,7 +171,7 @@ def find_ground_state_conformers(name, rdkit_conf, charge, multiplicity, num_cpu
 
                     # Check if we should retry
                     if optimization_attempts[conformer] < 2 or len(optimized_confs) < 2:
-                        future_to_conformer[executor.submit(optimize_conformer, conformer)] = conformer
+                        future_to_conformer[executor.submit(optimize_conformer, conformer, multiplicity, charge)] = conformer
                 except Exception as exc:
                     print(f"Optimizing {conformer.label} raised an exception: {exc}")
                     
@@ -279,7 +229,8 @@ def perform_ground_state_search(name, smi, charge, multiplicity, num_cpus):
             molecule_type = "Product"
         
         try:
-            print(f"{molecule_type} ground state search")
+            print(f"""
+                  {molecule_type} ground state search""")
             qmconf, energy_stats, rmsd_stats = find_ground_state_conformers(
                 molecule_name, rdkit_conf, charge, multiplicity, num_cpus, initial_smiles)
             stat_dictionary[f"{molecule_type}_Energy"] = energy_stats
@@ -316,7 +267,7 @@ def perform_ground_state_search(name, smi, charge, multiplicity, num_cpus):
     if reactant_qmconf is not None and product_qmconf is not None:
         energy_diff = product_qmconf.results['energy'] - reactant_qmconf.results['energy']
     else:
-        energy_diff = None  # Or some other default value
+        energy_diff = None
 
     return reactant_qmconf, product_qmconf, energy_diff, stat_dictionary
 
@@ -352,8 +303,7 @@ def main(batch_id, num_cpus):
     results = []
     for index, compound in data.iterrows():
       print(f"""
-Index: {index+1}/{len(data)}, Compound: {compound.HashedName}
-""")
+Index: {index+1}/{len(data)}, Compound: {compound.HashedName}""")
       
       # Get reactant conformer, product conformer, and energy difference
       reactant_qmconf, product_qmconf, energy_diff, stat_dictionary = perform_ground_state_search(
@@ -367,9 +317,11 @@ Index: {index+1}/{len(data)}, Compound: {compound.HashedName}
       if reactant_qmconf is None or product_qmconf is None:
           results.append({
               'HashedName': str(compound.HashedName),
-              'CalculationStage': 'storage'
+              'CalculationStage': 'failed'
           })
       else:
+          reactant_qmconf.label = f"{compound.HashedName}_r"
+          product_qmconf.label = f"{compound.HashedName}_p"
           results.append({
               'HashedName': str(compound.HashedName),
               'ReactantObject': reactant_qmconf,
@@ -392,8 +344,7 @@ Index: {index+1}/{len(data)}, Compound: {compound.HashedName}
 {batch_id} finished:
 {results_df}
 
-Time: {formatted_elapsed_time}
-          """)
+Time: {formatted_elapsed_time}""")
 
     update_data(results_df)
 

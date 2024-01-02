@@ -19,21 +19,22 @@ def repeat_stda_calc(compound, n_runs):
     max_abs_product_lst = []
     osc_str_product_lst = []
     while len(max_abs_product_lst) < n_runs:
-        max_abs_reactant_value, osc_str_reactant_value = calculate_absorbtion(compound.ReactantObject)
-        max_abs_product_value, osc_str_product_value = calculate_absorbtion(compound.ProductObject)
+        max_abs_reactant_value, osc_str_reactant_value = calculate_absorbtion(compound.ReactantObject, print_results=False)
+        max_abs_product_value, osc_str_product_value = calculate_absorbtion(compound.ProductObject, print_results=False)
         max_abs_reactant_lst.append(max_abs_reactant_value)
         osc_str_reactant_lst.append(osc_str_reactant_value)
         max_abs_product_lst.append(max_abs_product_value)
         osc_str_product_lst.append(osc_str_product_value)
     return max_abs_reactant_lst, osc_str_reactant_lst, max_abs_product_lst, osc_str_product_lst
 
-def find_excited_states(molecule_file_path, charge, spin):
+def find_excited_states(molecule_file_path, charge, spin, print_command=True):
     """
     Calculates excited states for a given molecule using stda return the wavelenghts(nm) and oscillator strengths.
     """
     # Runs a ground state xtb calculation that writes a wfn.xtb with coordinates that is used in the stda step.
     shell_command = f"{XTB4STDA_PATH} {molecule_file_path} -chrg {charge} -uhf {spin}"
-    print(f"Shell Command: {shell_command}")
+    if print_command:
+        print(f"Shell Command: {shell_command}")
     execute_shell_command(shell_command, shell=False)
 
     # Executes the stda calculation for the excitation energies
@@ -42,7 +43,7 @@ def find_excited_states(molecule_file_path, charge, spin):
 
     # Shows the calculation outputs
     output_string = output.decode('utf-8')
-    print(output_string)
+    # print(output_string)
 
     # Regex patters that picks up the excitation energies, oscillator strengths and so on..
     data_pattern = re.compile(r"\s+(\d+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)")
@@ -73,24 +74,28 @@ def find_excited_states(molecule_file_path, charge, spin):
     return wavelengths, osc_strengths
 
 
-def calculate_absorbtion(compound):
+def calculate_absorbtion(compound, print_results=True):
     charge = '0'
     spin = '0'
 
     # Create xyz file to use as input in the xtb/stda calculations
     xyz_file_path = str(compound.label)+'.xyz'
     compound.write_xyz(to_file=True)
-
+    if print_results:
+        print_command_line = True
+    else:
+        print_command_line = False
+        
     # The results of the calculation
     wavelengths, osc_strengths = find_excited_states(
-        xyz_file_path, charge, spin)
+        xyz_file_path, charge, spin, print_command_line)
 
     # Find index of highest oscillator strength (skipping first value) and corresponding wavelength
     max_index = osc_strengths.index(max(osc_strengths[1:]))
     max_osc, max_wavelength = osc_strengths[max_index], wavelengths[max_index]
-
-    print(f"Max oscillator strength: {max_osc}")
-    print(f"Corresponding wavelength: {max_wavelength}")
+    if print_results:   
+        print(f"Max oscillator strength: {max_osc}")
+        print(f"Corresponding wavelength: {max_wavelength}")
 
     # os.remove(xyz_file_path)
 
@@ -98,7 +103,7 @@ def calculate_absorbtion(compound):
 
 def main(batch_id):
     # Step 1: Load the data from the database
-    filters = {'BatchID': batch_id, 'CalculationStage': 'ts_completed'}
+    filters = {'BatchID': batch_id, 'CalculationStage': '%ts_complete%'}
     data = retrieve_data(filters)
     print(data)
     start_time = time.time()
@@ -109,19 +114,26 @@ def main(batch_id):
 Index: {index+1}/{len(data)}, Compound: {compound.HashedName}
 """)
         stat_dictionary = {}
+        print(f"""
+    Reactant
+""")
         max_abs_reactant, osc_str_reactant = calculate_absorbtion(
             compound.ReactantObject)
+        print(f"""
+    Product
+""")
         max_abs_product, osc_str_product = calculate_absorbtion(compound.ProductObject)
 
-        max_abs_reactant_lst, osc_str_reactant_lst, max_abs_product_lst, osc_str_product_lst = repeat_stda_calc(compound, 21)
+        max_abs_reactant_lst, osc_str_reactant_lst, max_abs_product_lst, osc_str_product_lst = repeat_stda_calc(compound, 10)
         stat_dictionary["Reactant_Max_Abs"] = get_statistics(max_abs_reactant_lst)
         stat_dictionary["Reactant_Osc"] = get_statistics(osc_str_reactant_lst)
         stat_dictionary["Product_Max_Abs"] = get_statistics(max_abs_product_lst)
         stat_dictionary["Product_Osc"] = get_statistics(osc_str_product_lst)  
     
         #Calculate Solar conversion efficiency
-        solarCE = calc_sce.SCE(compound.StorageEnergy,compound.BackReactionBarrier,max_abs_reactant,osc_str_reactant)
-
+        solarCE = calc_sce.calculate_SCE(compound.StorageEnergy, compound.BackReactionBarrier, max_abs_reactant, osc_str_reactant)
+        print(f"SCE: {solarCE}")
+        
         results.append({
             'HashedName': str(compound.HashedName),
             'BatchID': str(compound.BatchID),
@@ -148,8 +160,7 @@ Index: {index+1}/{len(data)}, Compound: {compound.HashedName}
 {batch_id} finished:
 {results_df}
 
-Time: {formatted_elapsed_time}
-          """)
+Time: {formatted_elapsed_time}""")
 
     # Update the database with the results
     update_data(results_df)

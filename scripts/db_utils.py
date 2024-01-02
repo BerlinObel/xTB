@@ -1,6 +1,6 @@
 import sys
 import os
-from time import sleep
+from time import sleep, time
 import sqlite3
 from pickle import dumps, loads
 import pandas as pd
@@ -71,8 +71,31 @@ def create_table():
     """)
     
     close_db(conn)
-
-def insert_data(data):
+    
+def create_orca_table():
+    """Create the table if it doesn't already exist."""
+    conn = connect_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ORCAData (
+            ID INTEGER PRIMARY KEY AUTOINCREMENT,
+            HashedName TEXT,
+            BatchID TEXT,
+            CalculationStage TEXT,
+            StorageEnergy REAL,
+            BackReactionBarrier REAL,
+            MaxAbsorptionProduct REAL,
+            MaxOscillatorStrengthProduct REAL,
+            MaxAbsorptionReactant REAL,
+            MaxOscillatorStrengthReactant REAL,
+            SolarConversionEfficiency REAL
+        )
+    """)
+    
+    close_db(conn)
+    
+def insert_data(data, db_table="MoleculeData"):
     """Insert data into the database."""
     conn = connect_db()
     cursor = conn.cursor()
@@ -86,13 +109,30 @@ def insert_data(data):
     placeholders = ', '.join(['?' for _ in keys])
     
     cursor.execute(f"""
-        INSERT INTO MoleculeData ({columns})
+        INSERT INTO {db_table} ({columns})
         VALUES ({placeholders})
     """, values)
     
     conn.commit()
     close_db(conn)
-    
+
+def add_batch(input_file, batch_id):
+    chunk_size = int(input("Batch size: "))
+    data = pd.read_csv(input_file)
+    chunks = [data[i:i + chunk_size] for i in range(0, data.shape[0], chunk_size)]
+
+    for chunk in chunks:
+        for _, row in chunk.iterrows():
+            molecule_data = {
+                'HashedName': row['comp_name'],
+                'Smiles': row['smiles'],
+                'Multiplicity': row['multiplicity'],
+                'Charge': row['charge'],
+                'BatchID': batch_id,
+                'CalculationStage': 'storage'
+            }
+            insert_data(molecule_data)
+
 def set_calculation_stage(wanted_stage):
     conn = connect_db()
     cursor = conn.cursor()
@@ -100,50 +140,114 @@ def set_calculation_stage(wanted_stage):
     conn.commit()
     close_db(conn)
     
-def retrieve_data(filters):
-    """Retrieve data from the database based on the filters."""
-    conn = connect_db()
-    cursor = conn.cursor()
-    
-    # Modify the query construction logic to use LIKE for 'CalculationStage'
-    query = "SELECT * FROM MoleculeData WHERE "
-    query += " AND ".join([f"{key} LIKE ?" if key == 'CalculationStage' else f"{key} = ?" for key in filters.keys()])
-    
-    print("Query:", query)
-    print("Parameters:", tuple(filters.values()))
-    print("Database Path:", DB_PATH)
-    print("Current Working Directory:", os.getcwd())
-    print(conn)
-    
-    # Adjust the parameters to use % for 'CalculationStage'
-    params = [f"%{value}%" if key == 'CalculationStage' else value for key, value in filters.items()]
-    
+def delete_table():
+    """Delete a table from an SQLite database."""
+    table_name = input("Delete Table: ")
+    conn = None
     try:
-        cursor.execute(query, tuple(params))
-    except Exception as e:
+        conn = connect_db()
+        cursor = conn.cursor()
+        cursor.execute(f"DROP TABLE {table_name}")
+        conn.commit()
+        print(f"Table {table_name} deleted successfully.")
+    except sqlite3.Error as e:
         print(f"An error occurred: {e}")
-        close_db(conn)
+    finally:
+        if conn:
+            close_db(conn)
+  
+
+def rename_table():
+    """Rename a table in an SQLite database."""
+    old_table_name = input("Old Table Name: ")
+    new_table_name = input("New Table Name: ")
+    conn = None
+    try:
+        conn = connect_db()
+        cursor = conn.cursor()
+        cursor.execute(f"ALTER TABLE {old_table_name} RENAME TO {new_table_name}")
+        conn.commit()
+        print(f"Table {old_table_name} renamed to {new_table_name} successfully.")
+    except sqlite3.Error as e:
+        print(f"An error occurred: {e}")
+    finally:
+        if conn:
+            close_db(conn)
+            
+def backup_table(original_table_name, backup_table_name):
+    """Create a backup of a table by copying it to a new table with a different name."""
+    conn = None
+    try:
+        # Connect to the database
+        conn = connect_db()
+
+        # Create a cursor object to execute SQL queries
+        cursor = conn.cursor()
+
+        # Check if the backup table already exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (backup_table_name,))
+        if cursor.fetchone():
+            print(f"Backup table {backup_table_name} already exists.")
+            return
+
+        # Execute the query to create a copy of the table
+        cursor.execute(f"CREATE TABLE {backup_table_name} AS SELECT * FROM {original_table_name}")
+
+        # Commit the changes
+        conn.commit()
+
+        print(f"Table {original_table_name} backed up as {backup_table_name} successfully.")
+
+    except sqlite3.Error as e:
+        print(f"An error occurred: {e}")
+
+    finally:
+        # Close the database connection
+        if conn:
+            close_db(conn)
+
+def retrieve_data(filters, db_table='MoleculeData'):
+    """Retrieve data from the database based on the filters."""
+    conn = None
+    try:
+        conn = connect_db()
+        cursor = conn.cursor()
+        query_parts = []
+        params = []
+
+        for key, value in filters.items():
+            if isinstance(value, str) and "%" in value:
+                query_parts.append(f"{key} LIKE ?")
+                params.append(value)
+            else:
+                query_parts.append(f"{key} = ?")
+                params.append(value)
+
+        query = f"SELECT * FROM {db_table} WHERE " + " AND ".join(query_parts)
+        
+        # Debugging prints (you can remove these in production)
+        print("Query:", query)
+        print("Parameters:", params)
+        print("Database Path:", DB_PATH)
+        print("Current Working Directory:", os.getcwd())
+
+        cursor.execute(query, params)
+        data = cursor.fetchall()
+        columns = [desc[0] for desc in cursor.description]
+        data_df = pd.DataFrame(data, columns=columns)
+        for col in ['ProductObject', 'ReactantObject', 'TransitionStateObject', 'GroundStateStats', 'TransistionStateStats', 'ExcitationStats']:
+            if col in data_df.columns:
+                data_df[col] = data_df[col].apply(lambda x: deserialize_object(x) if x is not None else x)
+        return data_df
+    except sqlite3.Error as e:
+        print(f"An error occurred: {e}")
         return None
-    
-    data = cursor.fetchall()
-    
-    # Get the column names from the cursor description
-    columns = [desc[0] for desc in cursor.description]
-    
-    # Create a pandas DataFrame from the data
-    data_df = pd.DataFrame(data, columns=columns)
-    
-    # Deserialize complex object columns from binary format
-    for col in ['ProductObject', 'ReactantObject', 'TransitionStateObject', 'GroundStateStats', 'TransistionStateStats', 'ExcitationStats']:
-        if col in data_df.columns:
-            data_df[col] = data_df[col].apply(lambda x: deserialize_object(x) if x is not None else x)
-    
-    close_db(conn)
-    
-    return data_df    
+    finally:
+        if conn:
+            close_db(conn)
 
 
-def update_data(data_df):
+def update_data(data_df, MoleculeData='MoleculeData'):
     """Update data in the database with a DataFrame based on batch ID"""
     
     # Serialize complex object columns to binary format
@@ -154,35 +258,37 @@ def update_data(data_df):
     for _ in range(5):  # Retry up to 5 times
         try:
             with locked_db_connection() as conn:
+
+                unique_table_name = f"NewTable_{int(time())}"
+
                 # Write DataFrame to SQLite
-                data_df.to_sql('NewTable', conn, if_exists='replace', index=False)
+                data_df.to_sql(unique_table_name, conn, if_exists='replace', index=False)
 
                 # Construct the SQL update query dynamically with conditional logic for 'CalculationStage'
                 set_statements = ", ".join(
-                    f"{col} = CASE WHEN '{col}' = 'CalculationStage' THEN (CASE WHEN CalculationStage = 'storage' THEN (SELECT {col} FROM NewTable WHERE NewTable.HashedName = MoleculeData.HashedName) WHEN instr(CalculationStage, (SELECT {col} FROM NewTable WHERE NewTable.HashedName = MoleculeData.HashedName)) > 0 THEN CalculationStage ELSE CalculationStage || ', ' || (SELECT {col} FROM NewTable WHERE NewTable.HashedName = MoleculeData.HashedName) END) ELSE (SELECT {col} FROM NewTable WHERE NewTable.HashedName = MoleculeData.HashedName) END"
+                    f"{col} = CASE WHEN '{col}' = 'CalculationStage' THEN (CASE WHEN CalculationStage = 'storage' THEN (SELECT {col} FROM {unique_table_name} WHERE {unique_table_name}.HashedName = {MoleculeData}.HashedName) WHEN instr(CalculationStage, (SELECT {col} FROM {unique_table_name} WHERE {unique_table_name}.HashedName = {MoleculeData}.HashedName)) > 0 THEN CalculationStage ELSE CalculationStage || ', ' || (SELECT {col} FROM {unique_table_name} WHERE {unique_table_name}.HashedName = {MoleculeData}.HashedName) END) ELSE (SELECT {col} FROM {unique_table_name} WHERE {unique_table_name}.HashedName = {MoleculeData}.HashedName) END"
                     for col in data_df.columns if col not in ['HashedName']
                 )
 
                 query = f'''
-                UPDATE MoleculeData
+                UPDATE {MoleculeData}
                 SET 
                     {set_statements}
                 WHERE 
-                    EXISTS (SELECT 1 FROM NewTable WHERE NewTable.HashedName = MoleculeData.HashedName);
+                    EXISTS (SELECT 1 FROM {unique_table_name} WHERE {unique_table_name}.HashedName = {MoleculeData}.HashedName);
                 '''
                 
                 # Execute the query and drop the temporary table within the context manager
                 conn.execute(query)
-                conn.execute("DROP TABLE NewTable")
+                conn.execute(f"DROP TABLE {unique_table_name}")
                 break  # Break out of the loop if the operation succeeds
         except sqlite3.OperationalError as e:
             if "database is locked" in str(e):
                 print("Database is locked, retrying...")
-                sleep(1)  # Wait for 1 second before retrying
+                sleep(10)  # Wait for 10 seconds before retrying
             else:
                 raise  # Re-raise the exception if it's not a "database is locked" error
 
-    # Close the connection
     conn.close()
 
 

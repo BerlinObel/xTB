@@ -16,11 +16,13 @@ We deeply appreciate their foundational work.
 
 - **What it does**: The scripts automate calculations of storage energies, thermal back reaction barriers, and maximum absorption wavelengths using the xTB method.
   
-- **Storage**: All results are stored in an SQLite database, which is efficient for both storage and retrieval. Molecules are stored using RDKit as QMmol objects, making it easy to access details like SMILES and XYZ coordinates.
+- **Storage**: All results are stored in an SQLite database. Molecules are stored using RDKit as QMmol objects, making it easy to access details like SMILES and XYZ coordinates.
   
 - **Languages & Tools**: The scripts are in Python, using SQLite for the database. Calculations run in parallel using SLURM.
 
-- **Progress Tracking**: Once the database is set up and filled, you can calculate storage energies and ground states for reactants and products. Subsequent calculations can be submitted after that. We're also working on gathering statistics from each calculation to understand uncertainties better.
+- **Order of Operations**: Once the database is set up and filled, you can calculate storage energies and ground states for reactants and products. Then the transistion states can be found and then the exciation energies and the solar conversion efficiency.
+
+- **Submitting to ORCA**: There are scripts that can submit to ORCA to use for comparing results. All scripta ending in dft is what is used here.
 
 ## File Descriptions
 
@@ -126,5 +128,82 @@ Additionally, ensure that the `.param_stda1.xtb` and `.param_stda2.xtb` files ar
    - Command: `python submit_calculations.py abs`
    - It calculates max absorption wavelengths and oscillator strengths using sTDA for excitations.
    - Populates: MaxAbsorptionProduct, MaxOscillatorStrengthProduct, and other related columns.
+
+## Database Functionalities
+
+### Choosing Which Table to Use
+
+In the file `db_utils.py`, the functions `insert_data`, `retrieve_data`, and `update_data` have options to select the table within the database they operate on. By default, they all work on the "MoleculeData" table.
+
+### Command Line Inputs
+Manipulating the database is performed through the command line using the script `data_preparation.py`. By executing `python data_preparation.py {command}`, you can access the following functionalities:
+
+**Fill**
+- Command: `python data_preparation.py fill $input_file.csv`
+- Result: Adds the contents of `input_file.csv` to the database table.
+- Prompt: Requests batch size, determining the number of molecules in each calculation batch.
+
+**Create**
+- Command: `python data_preparation.py create`
+- Result: Creates the database `molecule_data.db` along with the `MoleculeData` table, including the appropriate columns.
+
+**ORCA**
+- Command: `python data_preparation.py orca`
+- Result: Creates a table named `ORCAData` within the database.
+
+**Change**
+- Command: `python data_preparation.py change`
+- Result: Manually alters the value of the "CalculationStage" column.
+- Prompt: Asks for "CalculationStage:", the input specifies the new value.
+
+**Delete**
+- Command: `python data_preparation.py delete`
+- Result: Deletes a specified table within the database.
+- Prompt: Asks "Delete Table:", input is the name of the table to be deleted.
+
+**Rename**
+- Command: `python data_preparation.py rename`
+- Result: Renames a table in the database.
+- Prompts:
+    1. "Old Table Name:" – specify the name of the table to be renamed.
+    2. "New Table Name:" – specify the new name for the table.
+
+**Backup**
+- Command: `python data_preparation.py backup`
+- Result: Automatically creates a copy of the chosen table, appending the current time to the name (YYYYMMDD_HHMMSS).
+- Prompt: "Which table:" – specify the table name for backup.
+
+**Add Batch**
+- Command: `python data_preparation.py add_batch $extra_input.csv $new_batch_id`
+- Result: Adds an extra batch with a specific batch ID to the end of the database table.
+
+## Submitting Calculations
+
+### Command Line Input
+
+Generally, use `python submit_calculations.py {calculation_type}`. This fetches data from the database that has reached the necessary calculation stage for the specified type. 
+
+**Resubmit a Batch**
+- Command: `python submit_calculations.py {calculation_type} {batch_id}`
+- Note: *{batch_id}* is optional. It can be added to the command if a specific batch needs to be resubmitted.
+
+#### Calculation Types
+
+**Storage Energy Calculations**
+- Command: `python submit_calculations.py storage`
+- Calculation Stage Needed: "storage"
+
+**Transition State Search**
+- Command: `python submit_calculations.py tbr`
+- Calculation Stage Needed: "storage_completed"
+
+**Excitation Energies and SCE**
+- Command: `python submit_calculations.py abs`
+- Calculation Stages Needed: "storage_completed, ts_completed"
+
+### ORCA
+
+To submit to ORCA, modify the settings by uncommenting `SLURM_TEMPLATE = SLURM_TEMPLATE_ORCA` and adding "_dft" to the calculation types. Note: This feature is not fully tested and may have some issues.
+
 
 Please reach out for questions or feedback `:)`
