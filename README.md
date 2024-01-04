@@ -178,6 +178,50 @@ Manipulating the database is performed through the command line using the script
 - Command: `python data_preparation.py add_batch $extra_input.csv $new_batch_id`
 - Result: Adds an extra batch with a specific batch ID to the end of the database table.
 
+
+### Retrieve Data to a Pandas DataFrame
+
+The `db_utils.py` file contains a function `retrieve_data` that constructs a SQLite query based on two arguments. The first argument, `filters`, is a dictionary where the keys represent column names and the values specify filter criteria. The second argument determines which database table to source the data from. This function returns a pandas DataFrame containing all columns from the table, filtered to include rows that match the criteria. Additionally, it automatically deserializes columns containing objects and dictionaries, making them accessible in Python.
+
+Here's an example retrieving molecules with the string "storage_completed" in the "CalculationStage" column from a table named "TestMolecules":
+
+```python
+filters = {'CalculationStage': '%storage_completed%'}
+molecules_df = retrieve_data(filters, db_table='TestMolecules')
+```
+
+#### Getting XYZ Files Using the QMC Package
+
+To obtain XYZ files using the QMC package, start by fetching the QMmol or QMconf object:
+
+```python
+reactant = molecules_df['ReactantObject']
+reactant.write_xyz()
+```
+
+The resulting file will be named according to the label of the reactant (e.g., `{reactant.label}.xyz`), which is stored in the object.
+
+#### Using RDKit
+
+To convert the QMmol or QMconf object to an XYZ file using RDKit, follow these steps:
+
+1. Convert the object to an RDKit molecule:
+
+   ```python
+   reactant_rdkit_mol = reactant.get_rdkit_mol()
+   ```
+
+2. Then, use RDKit to create an XYZ file, choosing your own filename:
+
+   ```python
+   from rdkit.Chem import rdmolfiles
+
+   xyz_data = rdmolfiles.MolToXYZBlock(reactant_rdkit_mol)
+   with open(filename, 'w') as f:
+       f.write(xyz_data)
+   ```
+
+
 ## Submitting Calculations
 
 ### Command Line Input
@@ -205,6 +249,11 @@ Generally, use `python submit_calculations.py {calculation_type}`. This fetches 
 ### ORCA
 
 To submit to ORCA, modify the settings by uncommenting `SLURM_TEMPLATE = SLURM_TEMPLATE_ORCA` and adding "_dft" to the calculation types. Note: This feature is not fully tested and may have some issues.
+
+
+
+
+
 
 
 Please reach out for questions or feedback `:)`
