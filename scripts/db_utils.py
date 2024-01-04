@@ -5,6 +5,7 @@ import sqlite3
 from pickle import dumps, loads
 import pandas as pd
 from contextlib import contextmanager
+import random
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from settings import DB_PATH
@@ -207,7 +208,17 @@ def backup_table(original_table_name, backup_table_name):
             close_db(conn)
 
 def retrieve_data(filters, db_table='MoleculeData'):
-    """Retrieve data from the database based on the filters."""
+    """
+    Retrieve data from the database based on the filters.
+
+    Parameters:
+    filters (dict): A dictionary where keys are column names and values are filter criteria.
+    db_table (str): The database table to query. Defaults to 'MoleculeData'.
+
+    Returns:
+    pandas.DataFrame: A DataFrame containing the retrieved data, or None if an error occurs.
+    """
+    
     conn = None
     try:
         conn = connect_db()
@@ -258,8 +269,8 @@ def update_data(data_df, MoleculeData='MoleculeData'):
     for _ in range(5):  # Retry up to 5 times
         try:
             with locked_db_connection() as conn:
-
-                unique_table_name = f"NewTable_{int(time())}"
+                random_integer = random.randint(1, 1000)
+                unique_table_name = f"NewTable_{int(time())}_{random_integer}"
 
                 # Write DataFrame to SQLite
                 data_df.to_sql(unique_table_name, conn, if_exists='replace', index=False)
@@ -285,7 +296,7 @@ def update_data(data_df, MoleculeData='MoleculeData'):
         except sqlite3.OperationalError as e:
             if "database is locked" in str(e):
                 print("Database is locked, retrying...")
-                sleep(10)  # Wait for 10 seconds before retrying
+                sleep(100)  # Wait for 100 seconds before retrying
             else:
                 raise  # Re-raise the exception if it's not a "database is locked" error
 
