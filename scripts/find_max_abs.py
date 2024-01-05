@@ -90,8 +90,13 @@ def calculate_absorbtion(compound, print_results=True):
     wavelengths, osc_strengths = find_excited_states(
         xyz_file_path, charge, spin, print_command_line)
 
-    # Find index of highest oscillator strength (skipping first value) and corresponding wavelength
-    max_index = osc_strengths.index(max(osc_strengths[1:]))
+    # Find index of oscillator strength at the first peak and corresponding wavelength
+    max_index = 1
+    while True:
+        if osc_strengths[max_index] > osc_strengths[max_index+1]:
+            break
+        else:
+            max_index = max_index +1
     max_osc, max_wavelength = osc_strengths[max_index], wavelengths[max_index]
     if print_results:   
         print(f"Max oscillator strength: {max_osc}")
