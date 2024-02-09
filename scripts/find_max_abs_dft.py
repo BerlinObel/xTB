@@ -161,7 +161,7 @@ Index: {index+1}/{len(data)}, Compound: {compound.HashedName}
    
         normal_termination_reactant, max_osc_reactant, max_wavelength_reactant, normal_termination_product, max_osc_product, max_wavelength_product = run_td_dft_calculations(reactant_xyz_path, product_xyz_path)
 
-        solarCE = calc_sce.calculate_SCE(compound.StorageEnergy, compound.BackReactionBarrier,max_wavelength_reactant, max_osc_reactant)
+        solarCE = calc_sce.calculate_SCE(compound.StorageEnergy, compound.BackReactionBarrier,max_wavelength_reactant,max_wavelength_product, max_osc_reactant,max_osc_product)
         if normal_termination_reactant and normal_termination_product:
             results.append({
                 'HashedName': compound_name,

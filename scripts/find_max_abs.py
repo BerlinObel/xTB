@@ -136,7 +136,7 @@ Index: {index+1}/{len(data)}, Compound: {compound.HashedName}
         stat_dictionary["Product_Osc"] = get_statistics(osc_str_product_lst)  
     
         #Calculate Solar conversion efficiency
-        solarCE = calc_sce.calculate_SCE(compound.StorageEnergy, compound.BackReactionBarrier, max_abs_reactant, osc_str_reactant)
+        solarCE = calc_sce.calculate_SCE(compound.StorageEnergy, compound.BackReactionBarrier, max_abs_reactant, max_abs_product, osc_str_reactant,osc_str_product)
         print(f"SCE: {solarCE}")
         
         results.append({
